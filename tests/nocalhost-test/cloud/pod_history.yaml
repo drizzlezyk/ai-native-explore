@@ -1,0 +1,65 @@
+# tests/nocalhost-test/cloud/pod_history.yaml
+- name: "Get pod history with id filter"
+  url: "/web/v1/cloud/pod/history"
+  method: "GET"
+  expected_status: 200
+  auth_required: true
+  debug_mode_if_no_cookie: true
+  query_params:
+    - key: "id"
+      value: "ascend_002"
+  description: "Filter pod history by id"
+
+- name: "Get pod history with cards_num filter"
+  url: "/web/v1/cloud/pod/history"
+  method: "GET"
+  expected_status: 200
+  auth_required: true
+  debug_mode_if_no_cookie: true
+  query_params:
+    - key: "cards_num"
+      value: "1"
+  description: "Filter pod history by cards_num"
+
+- name: "Get pod history with image filter"
+  url: "/web/v1/cloud/pod/history"
+  method: "GET"
+  expected_status: 200
+  auth_required: true
+  debug_mode_if_no_cookie: true
+  query_params:
+    - key: "image"
+      value: "python3.9-ms2.7.1-cann8.3.RC1"
+  description: "Filter pod history by image alias"
+
+- name: "Get pod history with pagination - page_size=5"
+  url: "/web/v1/cloud/pod/history"
+  method: "GET"
+  expected_status: 200
+  auth_required: true
+  debug_mode_if_no_cookie: true
+  query_params:
+    - key: "page_size"
+      value: "5"
+  description: "Pod history with page_size=5"
+
+- name: "Get pod history with pagination - page 2"
+  url: "/web/v1/cloud/pod/history"
+  method: "GET"
+  expected_status: 200
+  auth_required: true
+  debug_mode_if_no_cookie: true
+  query_params:
+    - key: "page_num"
+      value: "2"
+    - key: "page_size"
+      value: "5"
+  description: "Pod history page 2 with page_size=5"
+
+- name: "Get pod history without params"
+  url: "/web/v1/cloud/pod/history"
+  method: "GET"
+  expected_status: 200
+  auth_required: true
+  debug_mode_if_no_cookie: true
+  description: "Get all pod history (default params)"
