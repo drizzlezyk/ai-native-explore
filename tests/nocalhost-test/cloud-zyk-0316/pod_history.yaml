@@ -1,0 +1,113 @@
+name: "test_get_pod_history"
+url: "/v1/cloud/pod/history"
+method: "GET"
+expected_status: 200
+auth_required: true
+replace_if_no_cookie: true
+description: "Test GET /v1/cloud/pod/history endpoint - retrieve pod history with pagination"
+
+# Test Case 1: Basic request with minimal parameters
+test_cases:
+  - name: "basic_request"
+    description: "Get pod history without filters"
+    query_params:
+      - key: "page_num"
+        value: "1"
+      - key: "page_size"
+        value: "20"
+    expected_status: 200
+
+  - name: "with_id_filter"
+    description: "Get pod history filtered by ID"
+    query_params:
+      - key: "id"
+        value: "test-pod-id"
+      - key: "page_num"
+        value: "1"
+      - key: "page_size"
+        value: "20"
+    expected_status: 200
+
+  - name: "with_cards_num_filter"
+    description: "Get pod history filtered by GPU cards number"
+    query_params:
+      - key: "cards_num"
+        value: "1"
+      - key: "page_num"
+        value: "1"
+      - key: "page_size"
+        value: "10"
+    expected_status: 200
+
+  - name: "with_image_filter"
+    description: "Get pod history filtered by image"
+    query_params:
+      - key: "image"
+        value: "ubuntu:20.04"
+      - key: "page_num"
+        value: "1"
+      - key: "page_size"
+        value: "20"
+    expected_status: 200
+
+  - name: "with_all_filters"
+    description: "Get pod history with all filters"
+    query_params:
+      - key: "id"
+        value: "test-pod-id"
+      - key: "cards_num"
+        value: "2"
+      - key: "image"
+        value: "ubuntu:20.04"
+      - key: "page_num"
+        value: "1"
+      - key: "page_size"
+        value: "10"
+    expected_status: 200
+
+  - name: "large_page_size"
+    description: "Test with large page size"
+    query_params:
+      - key: "page_num"
+        value: "1"
+      - key: "page_size"
+        value: "100"
+    expected_status: 200
+
+  - name: "second_page"
+    description: "Test pagination - second page"
+    query_params:
+      - key: "page_num"
+        value: "2"
+      - key: "page_size"
+        value: "20"
+    expected_status: 200
+
+  - name: "invalid_page_num"
+    description: "Test with invalid page number (should default to 1)"
+    query_params:
+      - key: "page_num"
+        value: "invalid"
+      - key: "page_size"
+        value: "20"
+    expected_status: 200
+
+  - name: "invalid_page_size"
+    description: "Test with invalid page size (should default to 20)"
+    query_params:
+      - key: "page_num"
+        value: "1"
+      - key: "page_size"
+        value: "invalid"
+    expected_status: 200
+
+  - name: "no_auth"
+    description: "Test without authentication (should fail)"
+    auth_required: false
+    replace_if_no_cookie: false
+    query_params:
+      - key: "page_num"
+        value: "1"
+      - key: "page_size"
+        value: "20"
+    expected_status: 401
