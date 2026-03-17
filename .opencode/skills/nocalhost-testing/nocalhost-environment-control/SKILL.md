@@ -14,11 +14,15 @@ This is **Step 2** of the 4-step nocalhost testing workflow.
 The `nocalhostctl` tool (located in `.opencode/skills/nocalhost-testing/scripts/nocalhostctl/`) manages the entire lifecycle and maintains session state.
 
 ```bash
+# 0.check file fisrt
+ls .nocalhost/.config.json
+ls .nocalhost/.state.json
+
 # 1. Initial setup (install & start dev mode)
 go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go up
 
-# 2. Rebuild & Restart (sync code, build inside pod, restart server)
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go rebuild
+# 2. Rebuild & Restart (sync code including vendor, build inside pod, restart server)
+go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go rebuild --sync-vendor
 
 # 3. View logs
 go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go logs
@@ -34,21 +38,17 @@ go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/
 - **Go modules vendored locally**: run `go mod vendor` before starting
 - **Kubeconfig**: `~/.kube/xihe-test-v2_kubeconfig`
 
-## 2. Environment Variables
+## 2. Workflow
 
-Set these before running `nocalhostctl`:
+### Step 0: Prepare Configuration
+
+Save required configuration parameters:
 
 ```bash
-export XIHE_USERNAME="your-xihe-account-username-for-auth-bypass"
-export KUBECONFIG=~/.kube/xihe-test-v2_kubeconfig
+go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go prepare \
+  --xihe-user="your-xihe-account-username" \
+  --kubeconfig=~/.kube/xihe-test-v2_kubeconfig
 ```
-
-| Variable | Purpose |
-|----------|---------|
-| `XIHE_USERNAME` | Xihe account for auth bypass and dev pod identification |
-| `KUBECONFIG` | Path to kubeconfig file |
-
-## 3. Workflow
 
 ### Step 1: Initialize Dev Environment
 
@@ -62,10 +62,9 @@ go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/
 
 **For first-time setup only**, run these commands sequentially to start the server:
 
-1. **Sync**: Copy files to the pod (excluding `vendor`, `.git`, etc.)
+1. **Sync**: Copy files to the pod (including `vendor` if --sync-vendor is used)
 ```bash
-go mod vendor
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go sync  --sync-vendor
+go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go sync --sync-vendor
 ```
 
 2. **Build**: Build the binary inside the pod using `go build -mod=vendor`
@@ -75,18 +74,25 @@ go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/
 
 3. **Run**: Start the server using the `startup.sh` script inside the pod
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go run --user=$XIHE_USERNAME
+go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go run
 ```
 
 ### Step 3: Incremental Development (Rebuild)
 
 **After first-time setup**, use this command when you change your code. It will:
 1. **Sync**: Copy modified files to the pod (excluding `vendor`, `.git`, etc.)
-2. **Build**: Build the binary inside the pod using `go build -mod=vendor`.
-3. **Run**: Restart the server using the `startup.sh` script inside the pod.
+2. **Build**: Build binary inside the pod using `go build -mod=vendor`.
+3. **Run**: Restart the server using `startup.sh` script inside the pod.
+
+**Important**: The build command uses `-mod=vendor` which requires the vendor directory. Use `--sync-vendor` flag to include it:
 
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go rebuild --user=$XIHE_USERNAME
+go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go rebuild --sync-vendor
+```
+
+**Note**: For subsequent rebuilds after the first vendor sync, you can omit `--sync-vendor` for faster sync:
+```bash
+go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go rebuild
 ```
 
 ### Step 4: Monitor Logs
@@ -125,22 +131,26 @@ Skill: Creates YAML at tests/nocalhost-test/cloud/pod_history.yaml
 
 ### Execute Tests
 
-Use the **nocalhost-test-execution** skill:
-```bash
+When running in a subagent context, provide this tip to the main agent:
+
+"Execute tests using the nocalhost-test-execution skill by running:
 go run .opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
   --url=http://localhost:8092 \
   --group=cloud \
-  --user=$XIHE_USERNAME
-```
+  --user=<xihe-username-from-prepare>"
+
+The main agent will execute this command.
 
 ## 5. Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| `State not found` | Run the `up` command first. |
+| `Configuration not found` | Run `prepare` command first with required parameters. |
+| `State not found` | Run `up` command first. |
 | `Pod not found` | Your pod might have been deleted. Run `up` again to re-discover. |
-| `Build failed` | Ensure `go mod vendor` was run locally before syncing. |
-| `401 errors` | Check if `XIHE_USERNAME` is correctly set and server is in debug mode. |
+| `Build failed` | Ensure dependencies are correct in go.mod. The script auto-runs `go mod vendor` when using `--sync-vendor`. |
+| `Build failed: missing vendor directory` | Use `--sync-vendor` flag with rebuild command. Build uses `-mod=vendor` which requires vendor directory. |
+| `401 errors` | Check if XIHE_USERNAME was set correctly in prepare command. |
 
 ## 6. Directory Structure
 

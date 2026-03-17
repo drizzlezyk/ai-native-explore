@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +16,8 @@ type Config struct {
 	XiheUsername string `json:"xihe_username"`
 	KubeConfig   string `json:"kubeconfig"`
 	Namespace    string `json:"namespace"`
+	Appconfig    string `json:"appconfig"`
+	Deployconfig string `json:"deployconfig"`
 }
 
 type RuntimeState struct {
@@ -26,6 +27,7 @@ type RuntimeState struct {
 }
 
 func main() {
+	prepareCmd := flag.NewFlagSet("prepare", flag.ExitOnError)
 	upCmd := flag.NewFlagSet("up", flag.ExitOnError)
 	downCmd := flag.NewFlagSet("down", flag.ExitOnError)
 	syncCmd := flag.NewFlagSet("sync", flag.ExitOnError)
@@ -38,11 +40,13 @@ func main() {
 
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: go run scripts/nocalhostctl/main.go <command> [args]")
-		fmt.Println("Commands: up, down, sync, build, run, rebuild, stop, logs, forward")
+		fmt.Println("Commands: prepare, up, down, sync, build, run, rebuild, stop, logs, forward")
 		os.Exit(1)
 	}
 
 	switch os.Args[1] {
+	case "prepare":
+		handlePrepare(prepareCmd, os.Args[2:])
 	case "up":
 		handleUp(upCmd, os.Args[2:])
 	case "down":
@@ -91,15 +95,39 @@ func handleForward(fs *flag.FlagSet, args []string) {
 }
 
 func getConfigPath() string {
-	return ".opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/.config.json"
+	return ".nocalhost/.config.json"
 }
 
 func getStatePath() string {
-	return ".opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/.state.json"
+	return ".nocalhost/.state.json"
+}
+
+func ensureNocalhostDir() error {
+	if _, err := os.Stat(".nocalhost"); os.IsNotExist(err) {
+		return os.MkdirAll(".nocalhost", 0755)
+	}
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	return err
 }
 
 func loadConfig() (*Config, error) {
-	data, err := ioutil.ReadFile(getConfigPath())
+	data, err := os.ReadFile(getConfigPath())
 	if err != nil {
 		return &Config{}, nil
 	}
@@ -109,15 +137,16 @@ func loadConfig() (*Config, error) {
 }
 
 func saveConfig(config *Config) error {
+	config.KubeConfig = expandKubeConfigPath(config.KubeConfig)
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(getConfigPath(), data, 0644)
+	return os.WriteFile(getConfigPath(), data, 0644)
 }
 
 func loadState() (*RuntimeState, error) {
-	data, err := ioutil.ReadFile(getStatePath())
+	data, err := os.ReadFile(getStatePath())
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +160,7 @@ func saveState(state *RuntimeState) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(getStatePath(), data, 0644)
+	return os.WriteFile(getStatePath(), data, 0644)
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
@@ -139,6 +168,19 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return val
 	}
 	return defaultValue
+}
+
+func expandKubeConfigPath(kubeconfig string) string {
+	if strings.HasPrefix(kubeconfig, "~/") {
+		return filepath.Join(os.Getenv("HOME"), kubeconfig[2:])
+	}
+	if !filepath.IsAbs(kubeconfig) {
+		absPath, err := filepath.Abs(kubeconfig)
+		if err == nil {
+			return absPath
+		}
+	}
+	return kubeconfig
 }
 
 type NhctlOutput struct {
@@ -170,42 +212,40 @@ func extractNhctlOutput(output string) *NhctlOutput {
 }
 
 func handleUp(fs *flag.FlagSet, args []string) {
-	config, _ := loadConfig()
-
-	ns := fs.String("ns", getEnvOrDefault("NAMESPACE", config.Namespace), "Namespace")
-	if *ns == "" {
-		*ns = "xihe-test-v2"
-	}
-	kubeconfig := fs.String("kubeconfig", getEnvOrDefault("KUBECONFIG", config.KubeConfig), "KubeConfig path")
-	if *kubeconfig == "" {
-		*kubeconfig = os.Getenv("HOME") + "/.kube/xihe-test-v2_kubeconfig"
-	}
-	xiheUser := fs.String("xihe-user", getEnvOrDefault("XIHE_USERNAME", config.XiheUsername), "Xihe username")
-	fs.Parse(args)
-
-	if *xiheUser == "" {
-		fmt.Println("Error: XIHE_USERNAME is required (or set via --xihe-user or in config)")
+	config, err := loadConfig()
+	if err != nil {
+		fmt.Printf("Error: No configuration found. Run 'prepare' first. (%v)\n", err)
 		os.Exit(1)
 	}
 
-	// Save updated config
+	if config.XiheUsername == "" {
+		fmt.Println("Error: XIHE_USERNAME not configured. Run 'prepare' first.")
+		os.Exit(1)
+	}
+	if config.KubeConfig == "" {
+		fmt.Println("Error: KUBECONFIG not configured. Run 'prepare' first.")
+		os.Exit(1)
+	}
+
+	ns := fs.String("ns", config.Namespace, "Namespace")
+	fs.Parse(args)
+
+	xiheUser := config.XiheUsername
+
 	config.Namespace = *ns
-	config.KubeConfig = *kubeconfig
-	config.XiheUsername = *xiheUser
 	saveConfig(config)
 
-	projectName := "xihe-server-" + *xiheUser
+	projectName := "xihe-server-" + xiheUser
 	fmt.Printf("Starting nocalhost dev for %s in namespace %s...\n", projectName, *ns)
 
 	// 1. Install nocalhost app
 	fmt.Println("\n[1/3] Checking application installation...")
-	appPath := ".opencode/skills/nocalhost-testing/nocalhost-environment-control"
 	installCmd := exec.Command("nhctl", "install", projectName,
 		"-n", *ns,
 		"--type", "rawManifestLocal",
 		"--local-path", ".",
-		"--outer-config", filepath.Join(appPath, "configs", "app.yaml"),
-		"--kubeconfig", *kubeconfig,
+		"--outer-config", config.Appconfig,
+		"--kubeconfig", config.KubeConfig,
 	)
 	installCmd.Stdout = os.Stdout
 	installCmd.Stderr = os.Stderr
@@ -218,7 +258,7 @@ func handleUp(fs *flag.FlagSet, args []string) {
 		"-d", "xihe-server",
 		"--dev-mode", "duplicate",
 		"--image", "golang:1.24",
-		"--kubeconfig", *kubeconfig,
+		"--kubeconfig", config.KubeConfig,
 		"--without-terminal",
 		"--without-sync",
 		"--local-sync", ".",
@@ -245,7 +285,7 @@ func handleUp(fs *flag.FlagSet, args []string) {
 		discCmd := exec.Command("kubectl", "get", "pod", "-n", *ns,
 			"-l", fmt.Sprintf("nocalhost.application.name=%s,dev.nocalhost.io/container=nocalhost-dev", projectName),
 			"-o", "jsonpath={.items[0].metadata.name}",
-			"--kubeconfig", *kubeconfig,
+			"--kubeconfig", config.KubeConfig,
 		)
 		out, _ := discCmd.Output()
 		podName = string(out)
@@ -263,11 +303,92 @@ func handleUp(fs *flag.FlagSet, args []string) {
 	fmt.Println("\nSuccess! Now run 'sync' and 'rebuild'.")
 }
 
+func handlePrepare(fs *flag.FlagSet, args []string) {
+	xiheUser := fs.String("xihe-user", "", "Xihe username (required)")
+	kubeconfig := fs.String("kubeconfig", "", "KubeConfig path (required)")
+	namespace := fs.String("namespace", "xihe-test-v2", "Kubernetes namespace")
+	fs.Parse(args)
+
+	if *xiheUser == "" {
+		fmt.Println("Error: --xihe-user is required")
+		os.Exit(1)
+	}
+	if *kubeconfig == "" {
+		fmt.Println("Error: --kubeconfig is required")
+		os.Exit(1)
+	}
+
+	if err := ensureNocalhostDir(); err != nil {
+		fmt.Printf("Error creating .nocalhost directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	appPath := ".opencode/skills/nocalhost-testing/nocalhost-environment-control"
+	srcAppConfig := filepath.Join(appPath, "configs", "app.yaml")
+	dstAppConfig := ".nocalhost/app.yaml"
+	srcDeployConfig := filepath.Join(appPath, "configs", "config.yaml")
+	dstDeployConfig := ".nocalhost/config.yaml"
+
+	if err := copyFile(srcAppConfig, dstAppConfig); err != nil {
+		fmt.Printf("Error copying app.yaml: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := copyFile(srcDeployConfig, dstDeployConfig); err != nil {
+		fmt.Printf("Error copying config.yaml: %v\n", err)
+		os.Exit(1)
+	}
+
+	config := &Config{
+		XiheUsername: *xiheUser,
+		KubeConfig:   *kubeconfig,
+		Namespace:    *namespace,
+		Appconfig:    dstAppConfig,
+		Deployconfig: dstDeployConfig,
+	}
+
+	if err := saveConfig(config); err != nil {
+		fmt.Printf("Error saving config: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Configuration saved successfully:")
+	fmt.Printf("  XIHE_USERNAME: %s\n", *xiheUser)
+	fmt.Printf("  KUBECONFIG: %s\n", *kubeconfig)
+	fmt.Printf("  NAMESPACE: %s\n", *namespace)
+	fmt.Printf("  APPCONFIG: %s\n", dstAppConfig)
+	fmt.Printf("  DEPLOYCONFIG: %s\n", dstDeployConfig)
+}
+
 func handleSync(fs *flag.FlagSet, args []string) {
 	syncVendor := false
 	if fs != nil {
 		fs.BoolVar(&syncVendor, "sync-vendor", false, "Include vendor directory in sync")
 		fs.Parse(args)
+	}
+	if len(args) > 0 && args[0] == "--sync-vendor" {
+		syncVendor = true
+	}
+	doSync(syncVendor)
+}
+
+func handleSyncWithVendor(syncVendor bool) {
+	doSync(syncVendor)
+}
+
+func doSync(syncVendor bool) {
+	if syncVendor {
+		if _, err := os.Stat("vendor"); os.IsNotExist(err) {
+			fmt.Println("Vendor directory not found. Running 'go mod vendor'...")
+			vendorCmd := exec.Command("go", "mod", "vendor")
+			vendorCmd.Stdout = os.Stdout
+			vendorCmd.Stderr = os.Stderr
+			if err := vendorCmd.Run(); err != nil {
+				fmt.Printf("Failed to run go mod vendor: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("Vendor directory created successfully.")
+		}
 	}
 
 	state, err := loadState()
@@ -294,13 +415,24 @@ func handleSync(fs *flag.FlagSet, args []string) {
 	tarCmd.Stdout = writer
 	untarCmd.Stdin = reader
 
-	tarCmd.Start()
-	untarCmd.Start()
-
-	if err := tarCmd.Wait(); err != nil {
-		fmt.Printf("Tar failed: %v\n", err)
+	if err := tarCmd.Start(); err != nil {
+		fmt.Printf("Failed to start tar: %v\n", err)
+		writer.Close()
+		return
 	}
-	writer.Close()
+	if err := untarCmd.Start(); err != nil {
+		fmt.Printf("Failed to start untar: %v\n", err)
+		writer.Close()
+		return
+	}
+
+	go func() {
+		if err := tarCmd.Wait(); err != nil {
+			fmt.Printf("Tar failed: %v\n", err)
+		}
+		writer.Close()
+	}()
+
 	if err := untarCmd.Wait(); err != nil {
 		fmt.Printf("Untar failed: %v\n", err)
 	}
@@ -362,6 +494,36 @@ func handleRun(fs *flag.FlagSet, args []string) {
 	fmt.Println("Server started in background. Check 'logs' for output.")
 }
 
+func handleRunWithUser(xiheUser string) {
+	config, _ := loadConfig()
+	if xiheUser == "" {
+		xiheUser = getEnvOrDefault("XIHE_USERNAME", config.XiheUsername)
+	}
+
+	state, err := loadState()
+	if err != nil {
+		fmt.Printf("Error: No active session found. (%v)\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Restarting xihe-server inside pod...")
+	// Pkill first
+	exec.Command("kubectl", "exec", "-n", config.Namespace, state.PodName,
+		"-c", "nocalhost-dev", "--kubeconfig", config.KubeConfig, "--", "pkill", "xihe-server").Run()
+
+	// Run startup script
+	startupScript := "/home/nocalhost-dev/.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/startup.sh"
+	runCmd := exec.Command("kubectl", "exec", "-n", config.Namespace, state.PodName,
+		"-c", "nocalhost-dev", "--kubeconfig", config.KubeConfig, "--",
+		"bash", "-c", fmt.Sprintf("export XIHE_USERNAME=%s; nohup bash %s > server.log 2>&1 &", xiheUser, startupScript),
+	)
+	if err := runCmd.Run(); err != nil {
+		fmt.Printf("Failed to start server: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("Server started in background. Check 'logs' for output.")
+}
+
 func handleRebuild(fs *flag.FlagSet, args []string) {
 	config, _ := loadConfig()
 	xiheUser := ""
@@ -372,19 +534,9 @@ func handleRebuild(fs *flag.FlagSet, args []string) {
 		fs.Parse(args)
 	}
 
-	syncFs := flag.NewFlagSet("sync", flag.ExitOnError)
-	syncFs.BoolVar(&syncVendor, "sync-vendor", syncVendor, "Include vendor directory in sync")
-	syncFs.Parse(args)
-	handleSync(nil, syncVendorArgs(syncVendor))
+	handleSyncWithVendor(syncVendor)
 	handleBuild(nil, nil)
-	handleRun(fs, args)
-}
-
-func syncVendorArgs(syncVendor bool) []string {
-	if syncVendor {
-		return []string{"--sync-vendor"}
-	}
-	return []string{}
+	handleRunWithUser(xiheUser)
 }
 
 func handleStop(fs *flag.FlagSet, args []string) {
