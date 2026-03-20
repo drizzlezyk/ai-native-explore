@@ -44,7 +44,7 @@ Skill: Invokes nocalhost-environment-control skill to:
 Run the test runner:
 
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
+go run -tags debug .opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
   --url=http://localhost:8092 \
   --group=cloud \
   --user=$XIHE_USERNAME
@@ -192,7 +192,7 @@ This is **Step 3** of the 4-step nocalhost testing workflow:
 # (Use nocalhost-environment-control skill - DO NOT run scripts directly)
 
 # Step 3: Execute tests
-go run .opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
+go run -tags debug .opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
   --url=http://localhost:8092 \
   --group=cloud \
   --user=$XIHE_USERNAME

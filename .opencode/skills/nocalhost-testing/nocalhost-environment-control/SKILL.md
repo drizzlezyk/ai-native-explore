@@ -16,19 +16,11 @@ The `nocalhostctl` tool (located in `.opencode/skills/nocalhost-testing/scripts/
 ```bash
 # 0.check file fisrt
 ls .nocalhost/.config.json
-ls .nocalhost/.state.json
 
-# 1. Initial setup (install & start dev mode)
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go up
+# 1. 
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl oneclickstart
 
-# 2. Rebuild & Restart (sync code including vendor, build inside pod, restart server)
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go rebuild --sync-vendor
 
-# 3. View logs
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go logs
-
-# 4. Port Forward
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go forward
 ```
 
 ## 1. Prerequisites
@@ -45,7 +37,7 @@ go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/
 Save required configuration parameters:
 
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go prepare \
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go prepare \
   --xihe-user="your-xihe-account-username" \
   --kubeconfig=~/.kube/xihe-test-v2_kubeconfig
 ```
@@ -55,7 +47,7 @@ go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/
 This command installs the application (if needed) and starts dev mode in **duplicate mode**. It captures the pod name and saves it to a local `.state.json` file.
 
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go up
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go up
 ```
 
 ### Step 2: First-Time Setup (Sync, Build, Run)
@@ -64,17 +56,17 @@ go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/
 
 1. **Sync**: Copy files to the pod (including `vendor` if --sync-vendor is used)
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go sync --sync-vendor
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl sync --sync-vendor
 ```
 
 2. **Build**: Build the binary inside the pod using `go build -mod=vendor`
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go build
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl build
 ```
 
 3. **Run**: Start the server using the `startup.sh` script inside the pod
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go run
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl run
 ```
 
 ### Step 3: Incremental Development (Rebuild)
@@ -87,12 +79,12 @@ go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/
 **Important**: The build command uses `-mod=vendor` which requires the vendor directory. Use `--sync-vendor` flag to include it:
 
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go rebuild --sync-vendor
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go rebuild --sync-vendor
 ```
 
 **Note**: For subsequent rebuilds after the first vendor sync, you can omit `--sync-vendor` for faster sync:
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go rebuild
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go rebuild
 ```
 
 ### Step 4: Monitor Logs
@@ -100,7 +92,7 @@ go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/
 Tail the server log inside the pod:
 
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go logs
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl logs
 ```
 
 ### Step 5: Port Forward
@@ -108,7 +100,7 @@ go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/
 Expose the server locally (defaults to localhost:8092):
 
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go forward
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl forward
 ```
 
 ### Step 6: Cleanup
@@ -116,7 +108,7 @@ go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/
 Stop dev mode and uninstall the application:
 
 ```bash
-go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go down
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go down
 ```
 
 ## 4. Running Tests

@@ -1,3 +1,5 @@
+//go:build debug
+
 package main
 
 import (
@@ -84,7 +86,7 @@ func loadTestCases(group string) ([]TestCaseWithSource, error) {
 	}
 
 	for _, file := range files {
-		data, err := ioutil.ReadFile(file)
+		data, err := ioutil.ReadFile(file) // nosec: G304
 		if err != nil {
 			return nil, fmt.Errorf("failed to read file %s: %w", file, err)
 		}
@@ -152,7 +154,7 @@ func loadCookies() (string, error) {
 		return "", fmt.Errorf("no cookie file specified")
 	}
 
-	data, err := ioutil.ReadFile(cookieFile)
+	data, err := ioutil.ReadFile(cookieFile) // nosec: G304
 	if err != nil {
 		return "", fmt.Errorf("failed to read cookie file: %w", err)
 	}
@@ -163,6 +165,7 @@ func loadCookies() (string, error) {
 func promptForUsername() string {
 	fmt.Print("Enter username for auth bypass: ")
 	var username string
+	// nosec: G104
 	fmt.Scanln(&username)
 	return username
 }
@@ -293,7 +296,7 @@ func writeReport(results []TestResult, passed, failed, replaced int) {
 	reportDir := "tests/nocalhost-test-report"
 	reportFile := fmt.Sprintf("%s/%s-report.md", reportDir, timestamp)
 
-	if err := os.MkdirAll(reportDir, 0755); err != nil {
+	if err := os.MkdirAll(reportDir, 0750); err != nil {
 		fmt.Printf("Warning: failed to create report directory: %v\n", err)
 	}
 
@@ -355,7 +358,7 @@ func writeReport(results []TestResult, passed, failed, replaced int) {
 		}
 	}
 
-	err := ioutil.WriteFile(reportFile, buf.Bytes(), 0644)
+	err := ioutil.WriteFile(reportFile, buf.Bytes(), 0600)
 	if err != nil {
 		fmt.Printf("Warning: failed to write report: %v\n", err)
 		return

@@ -35,7 +35,7 @@ Each step can also be invoked independently:
 2. **Initialize environment**
    First prepare the environment with the collected variables:
    ```bash
-   go run .opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go prepare \
+   go run ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl prepare \
      --xihe-user="$XIHE_USERNAME" \
      --kubeconfig="$KUBECONFIG_PATH"
    ```
@@ -44,7 +44,7 @@ Each step can also be invoked independently:
    ```javascript
    task({
      description: "Initialize nocalhost testing environment",
-     prompt: "Use the nocalhost-environment-control skill to set up the testing environment. This includes: up, rebuild, and forward operations.",
+     prompt: "Use the nocalhost-environment-control skill to set up the testing environment. oneclickstart.",
      subagent_type: "general"
    })
    ```
