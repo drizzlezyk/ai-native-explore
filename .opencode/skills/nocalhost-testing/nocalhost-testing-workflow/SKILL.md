@@ -35,7 +35,7 @@ Each step can also be invoked independently:
 2. **Initialize environment**
    First prepare the environment with the collected variables:
    ```bash
-   go run ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl prepare \
+   go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl prepare \
      --xihe-user="$XIHE_USERNAME" \
      --kubeconfig="$KUBECONFIG_PATH"
    ```
@@ -48,6 +48,9 @@ Each step can also be invoked independently:
      subagent_type: "general"
    })
    ```
+
+
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl --help   
 2. Generate test cases
 Use the nocalhost-test-management skill to create test case templates.
 
@@ -55,10 +58,13 @@ Use the nocalhost-test-management skill to create test case templates.
 Run the test runner:
 
 ``` bash
-go run .opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
+go run -tags debug .opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
   --url=http://localhost:8092 \
   --group=cloud \
   --user=$XIHE_USERNAME
+
+
+go run -tags debug .opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go --help  
 ```
 
 4. Refine test cases

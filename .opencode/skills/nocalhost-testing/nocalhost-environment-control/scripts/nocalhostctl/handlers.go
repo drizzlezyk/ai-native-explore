@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 func handleForward(fs *flag.FlagSet, args []string) {
@@ -476,4 +477,62 @@ func handleOneclickstart(fs *flag.FlagSet, args []string) {
 
 	fmt.Println("\n[6/6] Tailing logs...")
 	runLogs(true)
+}
+
+func handleStatus(fs *flag.FlagSet, args []string) {
+	fs.Parse(args)
+	runStatus()
+}
+
+func runStatus() {
+	state, err := loadState()
+	if err != nil {
+		printStatus("uninstalled", "", "oneclickstart")
+		return
+	}
+
+	config, _ := loadConfig()
+
+	podRunning := checkPodRunning(state.PodName, config.Namespace, config.KubeConfig)
+	if !podRunning {
+		printStatus("uninstalled", "", "oneclickstart")
+		return
+	}
+
+	serverRunning := checkServerHeartbeat()
+	if serverRunning {
+		printStatus("server_running", state.PodName, "rebuild")
+	} else {
+		printStatus("pod_running", state.PodName, "rebuild --sync-vendor")
+	}
+}
+
+func checkPodRunning(podName, namespace, kubeconfig string) bool {
+	cmd := exec.Command("kubectl", "get", "pod", podName,
+		"-n", namespace,
+		"-o", "jsonpath={.status.phase}",
+		"--kubeconfig", kubeconfig,
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return string(output) == "Running"
+}
+
+func checkServerHeartbeat() bool {
+	cmd := exec.Command("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:8092/internal/heartbeat")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(output)) == "200"
+}
+
+func printStatus(state, podName, nextHint string) {
+	fmt.Printf("Xihe-server: %s\n", state)
+	if podName != "" {
+		fmt.Printf("   Pod: %s\n", podName)
+	}
+	fmt.Printf("   Next: %s\n", nextHint)
 }

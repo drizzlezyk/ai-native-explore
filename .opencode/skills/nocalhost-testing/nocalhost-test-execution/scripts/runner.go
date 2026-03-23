@@ -18,14 +18,13 @@ import (
 )
 
 type TestCase struct {
-	Name                string       `yaml:"name"`
-	URL                 string       `yaml:"url"`
-	Method              string       `yaml:"method"`
-	ExpectedStatus      int          `yaml:"expected_status"`
-	AuthRequired        bool         `yaml:"auth_required"`
-	DebugModeIfNoCookie bool         `yaml:"debug_mode_if_no_cookie"`
-	QueryParams         []QueryParam `yaml:"query_params"`
-	Description         string       `yaml:"description"`
+	Name           string       `yaml:"name"`
+	URL            string       `yaml:"url"`
+	Method         string       `yaml:"method"`
+	ExpectedStatus int          `yaml:"expected_status"`
+	AuthRequired   bool         `yaml:"auth_required"`
+	QueryParams    []QueryParam `yaml:"query_params"`
+	Description    string       `yaml:"description"`
 }
 
 type QueryParam struct {
@@ -38,34 +37,43 @@ type TestGroup struct {
 }
 
 var baseURL string
-var cookieFile string
 var group string
 var testUsername string
-var podName string
 
 type TestResult struct {
-	Name                string       `yaml:"name"`
-	URL                 string       `yaml:"url"`
-	Method              string       `yaml:"method"`
-	QueryParams         []QueryParam `yaml:"query_params"`
-	ExpectedStatus      int          `yaml:"expected_status"`
-	ActualStatus        int          `yaml:"actual_status"`
-	AuthRequired        bool         `yaml:"auth_required"`
-	DebugModeIfNoCookie bool         `yaml:"debug_mode_if_no_cookie"`
-	Description         string       `yaml:"description"`
-	Passed              bool         `yaml:"passed"`
-	Skipped             bool         `yaml:"skipped"`
-	SkipReason          string       `yaml:"skip_reason,omitempty"`
-	AuthReplaced        bool         `yaml:"auth_replaced"`
-	Error               string       `yaml:"error,omitempty"`
-	ResponseBody        string       `yaml:"response_body,omitempty"`
-	Timestamp           string       `yaml:"timestamp"`
-	SourceFile          string       `yaml:"source_file"`
+	Name           string       `yaml:"name"`
+	URL            string       `yaml:"url"`
+	Method         string       `yaml:"method"`
+	QueryParams    []QueryParam `yaml:"query_params"`
+	ExpectedStatus int          `yaml:"expected_status"`
+	ActualStatus   int          `yaml:"actual_status"`
+	AuthRequired   bool         `yaml:"auth_required"`
+	Description    string       `yaml:"description"`
+	Passed         bool         `yaml:"passed"`
+	Skipped        bool         `yaml:"skipped"`
+	SkipReason     string       `yaml:"skip_reason,omitempty"`
+	Error          string       `yaml:"error,omitempty"`
+	ResponseBody   string       `yaml:"response_body,omitempty"`
+	Timestamp      string       `yaml:"timestamp"`
+	SourceFile     string       `yaml:"source_file"`
 }
 
 type TestCaseWithSource struct {
 	TestCase
 	SourceFile string
+}
+
+func printHelp() {
+	fmt.Println("Usage: runner [flags]")
+	fmt.Println("")
+	fmt.Println("Flags:")
+	fmt.Println("  -url string     Base URL of the server (default: http://localhost:8092)")
+	fmt.Println("  -group string   Test group to run, e.g. cloud, user (default: cloud)")
+	fmt.Println("  -user string    Username for auth bypass (default: XIHE_USERNAME env var)")
+	fmt.Println("")
+	fmt.Println("Examples:")
+	fmt.Println("  runner --url=http://localhost:8092 --group=cloud")
+	fmt.Println("  runner --group=user --user=testuser")
 }
 
 func loadTestCases(group string) ([]TestCaseWithSource, error) {
@@ -107,7 +115,7 @@ func loadTestCases(group string) ([]TestCaseWithSource, error) {
 	return allCases, nil
 }
 
-func executeTestCase(tc TestCase, cookies string) (bool, int, string, string, error) {
+func executeTestCase(tc TestCase) (bool, int, string, string, error) {
 	reqURL := baseURL + tc.URL
 	var params []string
 	if len(tc.QueryParams) > 0 {
@@ -122,10 +130,6 @@ func executeTestCase(tc TestCase, cookies string) (bool, int, string, string, er
 	req, err := http.NewRequest(tc.Method, reqURL, nil)
 	if err != nil {
 		return false, 0, "", "", err
-	}
-
-	if cookies != "" {
-		req.Header.Add("Cookie", cookies)
 	}
 
 	client := &http.Client{}
@@ -149,19 +153,6 @@ func executeTestCase(tc TestCase, cookies string) (bool, int, string, string, er
 	return passed, resp.StatusCode, paramsStr, bodyStr, nil
 }
 
-func loadCookies() (string, error) {
-	if cookieFile == "" {
-		return "", fmt.Errorf("no cookie file specified")
-	}
-
-	data, err := ioutil.ReadFile(cookieFile) // nosec: G304
-	if err != nil {
-		return "", fmt.Errorf("failed to read cookie file: %w", err)
-	}
-
-	return strings.TrimSpace(string(data)), nil
-}
-
 func promptForUsername() string {
 	fmt.Print("Enter username for auth bypass: ")
 	var username string
@@ -170,24 +161,20 @@ func promptForUsername() string {
 	return username
 }
 
-func enableDebugMode(podName, testUsername string) error {
-	fmt.Printf("Debug mode: using username '%s' for auth bypass (server should already be running with --enable_debug)\n", testUsername)
-	fmt.Println("Skipping rebuild - server is assumed to be already running with debug mode")
-	return nil
-}
-
 func main() {
 	flag.StringVar(&baseURL, "url", "http://localhost:8092", "Base URL of the server")
-	flag.StringVar(&cookieFile, "cookie", "", "Cookie file path (optional)")
 	flag.StringVar(&group, "group", "cloud", "Test group to run (cloud, user, etc.)")
 	flag.StringVar(&testUsername, "user", os.Getenv("XIHE_USERNAME"), "Username for auth bypass (default: XIHE_USERNAME env var)")
-	flag.StringVar(&podName, "pod", "xihe-server-i9a-a-3bfe2eb6-69986c97b5-x7kpx", "Pod name for nocalhost dev")
+
+	if len(os.Args) > 1 && (os.Args[1] == "--help" || os.Args[1] == "-h" || os.Args[1] == "help") {
+		printHelp()
+		os.Exit(0)
+	}
+
 	flag.Parse()
 
-	cookies, err := loadCookies()
-	if err != nil {
-		fmt.Printf("Warning: %v\n", err)
-		cookies = ""
+	if testUsername == "" {
+		testUsername = promptForUsername()
 	}
 
 	cases, err := loadTestCases(group)
@@ -200,54 +187,23 @@ func main() {
 	fmt.Println("")
 	passed := 0
 	failed := 0
-	replaced := 0
 
 	var results []TestResult
-	authBypassed := false
 
 	for _, tc := range cases {
 		result := TestResult{
-			Name:                tc.Name,
-			URL:                 tc.URL,
-			Method:              tc.Method,
-			QueryParams:         tc.QueryParams,
-			ExpectedStatus:      tc.ExpectedStatus,
-			AuthRequired:        tc.AuthRequired,
-			DebugModeIfNoCookie: tc.DebugModeIfNoCookie,
-			Description:         tc.Description,
-			Timestamp:           time.Now().Format(time.RFC3339),
-			SourceFile:          tc.SourceFile,
+			Name:           tc.Name,
+			URL:            tc.URL,
+			Method:         tc.Method,
+			QueryParams:    tc.QueryParams,
+			ExpectedStatus: tc.ExpectedStatus,
+			AuthRequired:   tc.AuthRequired,
+			Description:    tc.Description,
+			Timestamp:      time.Now().Format(time.RFC3339),
+			SourceFile:     tc.SourceFile,
 		}
 
-		if tc.AuthRequired && tc.DebugModeIfNoCookie && cookies == "" && !authBypassed {
-			if testUsername == "" {
-				testUsername = promptForUsername()
-			}
-			fmt.Printf("┌─────────────────────────────────────────────────────────────────────────────┐\n")
-			fmt.Printf("│ DEBUG MODE: %-63s│\n", tc.Name)
-			fmt.Printf("├─────────────────────────────────────────────────────────────────────────────┤\n")
-			fmt.Printf("│ URL: %-73s│\n", tc.URL)
-			fmt.Printf("│ Auth Required: %-65s│", "YES (no cookie, will bypass)")
-			fmt.Printf("│ Params: %-70s│", getParamSummary(tc.QueryParams))
-			fmt.Printf("│ Expected Status: %-62d│", tc.ExpectedStatus)
-			fmt.Printf("├─────────────────────────────────────────────────────────────────────────────┤\n")
-			fmt.Printf("│ Bypassing auth with user: %-51s│\n", testUsername)
-			fmt.Printf("└─────────────────────────────────────────────────────────────────────────────┘\n")
-			fmt.Println("")
-
-			if err := enableDebugMode(podName, testUsername); err != nil {
-				fmt.Printf("ERROR: failed to bypass auth: %v\n", err)
-				result.Error = fmt.Sprintf("failed to bypass auth: %v", err)
-				result.AuthReplaced = false
-				results = append(results, result)
-				failed++
-				continue
-			}
-			result.AuthReplaced = true
-			authBypassed = true
-		}
-
-		ok, status, paramsStr, bodyStr, err := executeTestCase(tc.TestCase, cookies)
+		ok, status, paramsStr, bodyStr, err := executeTestCase(tc.TestCase)
 		result.ActualStatus = status
 		if err != nil {
 			fmt.Printf("ERROR: %s - %v\n", tc.Name, err)
@@ -256,13 +212,13 @@ func main() {
 			results = append(results, result)
 			failed++
 		} else if ok {
-			fmt.Printf("✓ PASS: %s | status=%d | params=[%s]\n", tc.Name, status, paramsStr)
+			fmt.Printf("PASS: %s | status=%d | params=[%s]\n", tc.Name, status, paramsStr)
 			result.Passed = true
 			result.ResponseBody = bodyStr
 			results = append(results, result)
 			passed++
 		} else {
-			fmt.Printf("✗ FAIL: %s | expected=%d, got=%d | params=[%s]\n", tc.Name, tc.ExpectedStatus, status, paramsStr)
+			fmt.Printf("FAIL: %s | expected=%d, got=%d | params=[%s]\n", tc.Name, tc.ExpectedStatus, status, paramsStr)
 			result.Passed = false
 			result.ResponseBody = bodyStr
 			results = append(results, result)
@@ -271,9 +227,9 @@ func main() {
 	}
 
 	fmt.Println("")
-	fmt.Printf("=== Results: %d passed, %d failed, %d auth replaced ===\n", passed, failed, replaced)
+	fmt.Printf("=== Results: %d passed, %d failed ===\n", passed, failed)
 
-	writeReport(results, passed, failed, replaced)
+	writeReport(results, passed, failed)
 
 	if failed > 0 {
 		os.Exit(1)
@@ -291,7 +247,7 @@ func getParamSummary(params []QueryParam) string {
 	return strings.Join(s, ", ")
 }
 
-func writeReport(results []TestResult, passed, failed, replaced int) {
+func writeReport(results []TestResult, passed, failed int) {
 	timestamp := time.Now().Format("20060102-150405")
 	reportDir := "tests/nocalhost-test-report"
 	reportFile := fmt.Sprintf("%s/%s-report.md", reportDir, timestamp)
@@ -305,10 +261,10 @@ func writeReport(results []TestResult, passed, failed, replaced int) {
 	buf.WriteString("# Nocalhost Test Report\n\n")
 	buf.WriteString(fmt.Sprintf("Generated: %s\n", time.Now().Format(time.RFC3339)))
 	buf.WriteString(fmt.Sprintf("Base URL: %s\n\n", baseURL))
+
 	buf.WriteString("## Summary\n\n")
 	buf.WriteString(fmt.Sprintf("- **Passed**: %d\n", passed))
 	buf.WriteString(fmt.Sprintf("- **Failed**: %d\n", failed))
-	buf.WriteString(fmt.Sprintf("- **Auth Replaced**: %d\n", replaced))
 	buf.WriteString(fmt.Sprintf("- **Total**: %d\n\n", len(results)))
 
 	buf.WriteString("## Test Results\n\n")
@@ -327,7 +283,6 @@ func writeReport(results []TestResult, passed, failed, replaced int) {
 			buf.WriteString(fmt.Sprintf("- **Expected Status**: %d\n", r.ExpectedStatus))
 			buf.WriteString(fmt.Sprintf("- **Actual Status**: %d\n", r.ActualStatus))
 			buf.WriteString(fmt.Sprintf("- **Auth Required**: %v\n", r.AuthRequired))
-			buf.WriteString(fmt.Sprintf("- **Debug Mode If No Cookie**: %v\n", r.DebugModeIfNoCookie))
 			buf.WriteString(fmt.Sprintf("- **Timestamp**: %s\n", r.Timestamp))
 
 			if len(r.QueryParams) > 0 {
@@ -337,12 +292,10 @@ func writeReport(results []TestResult, passed, failed, replaced int) {
 				}
 			}
 
-			if r.AuthReplaced {
-				buf.WriteString(fmt.Sprintf("- **Status**: AUTH REPLACED ✓\n"))
-			} else if r.Passed {
-				buf.WriteString(fmt.Sprintf("- **Status**: PASSED ✓\n"))
+			if r.Passed {
+				buf.WriteString(fmt.Sprintf("- **Status**: PASSED\n"))
 			} else {
-				buf.WriteString(fmt.Sprintf("- **Status**: FAILED ✗\n"))
+				buf.WriteString(fmt.Sprintf("- **Status**: FAILED\n"))
 				if r.Error != "" {
 					buf.WriteString(fmt.Sprintf("- **Error**: %s\n", r.Error))
 				}
