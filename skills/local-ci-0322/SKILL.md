@@ -17,12 +17,6 @@ This skill enables running the complete CI pipeline locally, matching the GitHub
 - **unit tests** - Test execution with coverage validation
 - **Docker build** - Image build verification
 
-**Key Features:**
-- ✅ Run all checks in one command
-- 📝 Generate detailed CI Fixes Report
-- 🧹 Automatic cleanup of temporary files
-- 🎯 Error descriptions with fix recommendations
-
 **Platform Support**: Linux and macOS
 
 ## Quick Start
@@ -52,11 +46,6 @@ export GITHUB_TOKEN=your-token
 bash .claude/local-ci/scripts/run_all_checks.sh
 ```
 
-**Output:**
-- Console summary of passed/failed checks
-- **CI Fixes Report** saved to `CI_FIXES_REPORT.md` (in project root)
-- Automatic cleanup of temporary files (`cover.out`, `coverage.txt`, etc.)
-
 **Or run individual checks**:
 ```bash
 bash .claude/local-ci/scripts/run_lint.sh          # golangci-lint
@@ -65,50 +54,6 @@ bash .claude/local-ci/scripts/run_gosec.sh         # security scan
 bash .claude/local-ci/scripts/run_tests.sh         # unit tests
 bash .claude/local-ci/scripts/run_docker_build.sh  # docker build
 ```
-
-## CI Fixes Report
-
-After running `run_all_checks.sh`, a comprehensive report is automatically generated at `CI_FIXES_REPORT.md` in your project root.
-
-**Report Contents:**
-- ✅ Summary of passed checks
-- ❌ List of failed checks
-- 📋 Detailed error messages for each failure
-- 💡 Recommended fixes for each error
-- 📊 CI check reference table
-
-**Example Report Structure:**
-```markdown
-# CI Fixes Report
-
-## Summary
-- ✅ Passed: 4 checks
-- ❌ Failed: 1 check
-
-### Failed Checks
-- ❌ golangci-lint
-
-## Error Details and Fixes
-
-### ❌ golangci-lint
-
-**Error Message:**
-cloud/app/dto.go:297:2: SA9003: empty branch (staticcheck)
-
-**Recommended Fix:**
-Run 'gofmt -w .' for formatting issues. Remove unused variables or prefix with '_'.
-Add proper error handling for unchecked errors.
-```
-
-**File Cleanup:**
-The following temporary files are automatically removed after checks:
-- `.ci-temp/` - Temporary logs directory
-- `cover.out` - Test coverage output
-- `coverage.txt` - Coverage text report
-- `gosec-results.json` - Security scan results
-- `.testcoverage.html` - Coverage HTML report
-
-**Only `CI_FIXES_REPORT.md` is kept** as the final deliverable.
 
 ## Individual CI Checks
 
@@ -160,60 +105,18 @@ bash .claude/local-ci/scripts/run_typos.sh
 
 **Requirements**:
 - `gosec` installed: `go install github.com/securego/gosec/v2/cmd/gosec@latest`
-- Or use install script: `.claude/skills/local-ci/scripts/install_tools.sh`
-- `jq` for JSON processing (usually pre-installed on Linux)
+- Or use install script: `.claude/local-ci/scripts/install_tools.sh`
 
 **Usage**:
 ```bash
-bash .claude/skills/local-ci/scripts/run_gosec.sh
+bash .claude/local-ci/scripts/run_gosec.sh
 ```
-
-**Output**:
-- Generates detailed JSON report: `.ci-temp/gosec-report.json`
-- Saves baseline for comparison: `.ci-temp/gosec-baseline.json`
-- Shows issue summary in console
-
-**Auto-fix with Dual-Agent Verification**:
-
-When security issues are found, you can use the dual-agent auto-fix system:
-
-```bash
-bash .claude/skills/local-ci/scripts/fix_security_issues.sh
-```
-
-**Dual-Agent Process**:
-
-1. **Fixer Agent** (Phase 1):
-   - Reads gosec scan results directly from `.ci-temp/gosec-report.json`
-   - Analyzes each security issue independently
-   - Applies fixes with atomic commits (one issue per commit)
-   - Generates fix summary at `.ci-temp/security-fixes.md`
-   - Prompt template: `.claude/skills/local-ci/prompts/fixer-agent-prompt.md`
-
-2. **Verifier Agent** (Phase 2):
-   - **Independent verification** - does NOT trust Fixer's report
-   - Reads baseline and after-fix scans directly
-   - Compares issue counts before/after
-   - Reviews actual git diffs to verify fixes
-   - Re-runs compilation and tests
-   - Provides **PASS/PARTIAL/FAIL** verdict with evidence
-   - Generates verification report at `.ci-temp/verification-report.md`
-   - Prompt template: `.claude/skills/local-ci/prompts/verifier-agent-prompt.md`
-
-**Why Dual-Agent?**
-- **Independence**: Verifier doesn't trust Fixer, verifies everything from scratch
-- **Evidence-based**: Both agents read primary evidence (scans, diffs, code)
-- **Reliable**: Catches cases where fixes don't actually resolve issues
-- **Transparent**: Full audit trail with verification report
 
 **Common fixes**:
-- G101 (credentials): Move to environment variables
-- G104 (unhandled errors): Add proper error handling
-- G201 (SQL injection): Use parameterized queries
-- G304 (file traversal): Validate paths with `filepath.Clean()`
-- G401 (weak crypto): Use SHA256 instead of MD5
-- G402 (TLS config): Set MinVersion to TLS 1.2
-- See prompt templates for detailed fix strategies
+- Weak crypto (G401): Use SHA256 instead of MD5
+- SQL injection (G201): Use parameterized queries
+- File traversal (G304): Validate paths with `filepath.Clean()`
+- See [references/ci-workflows.md](references/ci-workflows.md#3-gosec) for detailed fixes
 
 ### 4. Unit Tests (Coverage Check)
 
@@ -295,49 +198,35 @@ This installs:
 
 When CI checks fail, follow this workflow:
 
-1. **Read the CI Fixes Report**
+1. **Run the failing check locally**
    ```bash
-   cat CI_FIXES_REPORT.md  # or open in editor
+   bash .claude/local-ci/scripts/run_lint.sh  # or the specific failing check
    ```
-   - The report contains all error messages and recommended fixes
-   - Each failed check has its own section with details
 
-2. **Understand the error**
+2. **Read the error message carefully**
    - Note the file, line number, and error type
-   - Read the "Recommended Fix" section for guidance
+   - Errors include the specific issue and often suggest fixes
 
-3. **Apply the fix**
+3. **Consult the references for common fixes**
+   ```
+   Read references/ci-workflows.md section for the failing check
+   ```
+
+4. **Apply the fix**
    - Edit the problematic code
    - For typos: Can auto-fix with `typos --write-changes`
    - For lint: Often need to refactor or add error handling
    - For tests: Debug with `go test -v -run TestName`
 
-4. **Re-run all checks**
+5. **Re-run the check to verify**
+   ```bash
+   bash .claude/local-ci/scripts/run_lint.sh
+   ```
+
+6. **Run all checks before pushing**
    ```bash
    bash .claude/local-ci/scripts/run_all_checks.sh
    ```
-   - A new report will be generated
-   - Previous report is overwritten
-
-5. **Verify all pass before pushing**
-   - Check that `CI_FIXES_REPORT.md` shows 0 failed checks
-   - Commit your fixes
-   - Push to GitHub
-
-**Quick Fix Commands:**
-```bash
-# Auto-fix typos
-typos --write-changes ./
-
-# Format Go code
-gofmt -w .
-
-# Run specific test
-go test -v -run TestName ./path/to/package
-
-# View test coverage
-go tool cover -html=cover.out
-```
 
 ## Interpreting Errors
 
