@@ -3,11 +3,13 @@
 package main
 
 type Config struct {
-	XiheUsername string `json:"xihe_username"`
-	KubeConfig   string `json:"kubeconfig"`
-	Namespace    string `json:"namespace"`
-	Appconfig    string `json:"appconfig"`
-	Deployconfig string `json:"deployconfig"`
+	XiheUsername  string `json:"xihe_username"`
+	KubeConfig    string `json:"kubeconfig"`
+	Namespace     string `json:"namespace"`
+	Appconfig     string `json:"appconfig"`
+	Deployconfig  string `json:"deployconfig"`
+	StartupScript string `json:"startup_script"`
+	HeartbeatUrl  string `json:"heartbeat_url"`
 }
 
 type RuntimeState struct {

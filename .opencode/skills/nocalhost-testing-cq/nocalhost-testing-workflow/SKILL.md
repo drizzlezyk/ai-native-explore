@@ -36,6 +36,9 @@ Each step can also be invoked independently:
    First prepare the environment with the collected variables:
 
    ```bash
+
+    go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl status
+
    go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl prepare \
      --xihe-user="$XIHE_USERNAME" \
      --kubeconfig="$KUBECONFIG_PATH"

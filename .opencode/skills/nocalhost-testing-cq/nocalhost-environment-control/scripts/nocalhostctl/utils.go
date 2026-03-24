@@ -43,6 +43,13 @@ func copyFile(src, dst string) error {
 	return err
 }
 
+func copyFileIfNotExists(src, dst string) error {
+	if _, err := os.Stat(dst); err == nil {
+		return nil
+	}
+	return copyFile(src, dst)
+}
+
 func loadConfig() (*Config, error) {
 	data, err := os.ReadFile(getConfigPath())
 	if err != nil {

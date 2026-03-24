@@ -108,7 +108,7 @@ go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-co
 Stop dev mode and uninstall the application:
 
 ```bash
-go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go down
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl down
 ```
 
 ## 4. Running Tests

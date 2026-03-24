@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"time"
 )
 
 func handleForward(fs *flag.FlagSet, args []string) {
@@ -143,6 +145,7 @@ func handlePrepare(fs *flag.FlagSet, args []string) {
 	xiheUser := fs.String("xihe-user", "", "Xihe username (required)")
 	kubeconfig := fs.String("kubeconfig", "", "KubeConfig path (required)")
 	namespace := fs.String("namespace", "xihe-test-v2", "Kubernetes namespace")
+	heartbeatUrl := fs.String("heartbeat-url", "http://localhost:8092/internal/heartbeat", "Heartbeat URL for readiness check")
 	fs.Parse(args)
 
 	if *xiheUser == "" {
@@ -153,37 +156,88 @@ func handlePrepare(fs *flag.FlagSet, args []string) {
 		fmt.Println("Error: --kubeconfig is required")
 		os.Exit(1)
 	}
-	runPrepare(*xiheUser, *kubeconfig, *namespace)
+	runPrepare(*xiheUser, *kubeconfig, *namespace, *heartbeatUrl)
 }
 
-func runPrepare(xiheUser, kubeconfig, namespace string) {
+func GetSkillRoot() (string, error) {
+	// 优先使用可执行文件路径（适用于二进制）
+	if exe, err := os.Executable(); err == nil {
+		realExe, _ := filepath.EvalSymlinks(exe)
+		dir := filepath.Dir(realExe)
+		// 向上回溯到技能根目录
+		for {
+			if filepath.Base(dir) == "nocalhost-environment-control" {
+				return dir, nil
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+
+	// 降级：使用源码路径（适用于 go run）
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", fmt.Errorf("cannot determine skill root")
+	}
+	realPath, _ := filepath.EvalSymlinks(filename)
+	dir := filepath.Dir(realPath)
+	for {
+		if filepath.Base(dir) == "nocalhost-environment-control" {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return "", fmt.Errorf("skill root not found")
+}
+
+func runPrepare(xiheUser, kubeconfig, namespace, heartbeatUrl string) {
 	if err := ensureNocalhostDir(); err != nil {
 		fmt.Printf("Error creating .nocalhost directory: %v\n", err)
 		os.Exit(1)
 	}
-
-	appPath := ".opencode/skills/nocalhost-testing/nocalhost-environment-control"
+	skillroot, err := GetSkillRoot()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	appPath := skillroot
 	srcAppConfig := filepath.Join(appPath, "configs", "app.yaml")
 	dstAppConfig := ".nocalhost/app.yaml"
 	srcDeployConfig := filepath.Join(appPath, "configs", "config.yaml")
 	dstDeployConfig := ".nocalhost/config.yaml"
+	srcStartupScript := filepath.Join(appPath, "scripts", "startup.sh")
+	dstStartupScript := ".nocalhost/startup.sh"
 
-	if err := copyFile(srcAppConfig, dstAppConfig); err != nil {
+	if err := copyFileIfNotExists(srcAppConfig, dstAppConfig); err != nil {
 		fmt.Printf("Error copying app.yaml: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := copyFile(srcDeployConfig, dstDeployConfig); err != nil {
+	if err := copyFileIfNotExists(srcDeployConfig, dstDeployConfig); err != nil {
 		fmt.Printf("Error copying config.yaml: %v\n", err)
 		os.Exit(1)
 	}
 
+	if err := copyFileIfNotExists(srcStartupScript, dstStartupScript); err != nil {
+		fmt.Printf("Error copying startup.sh: %v\n", err)
+		os.Exit(1)
+	}
+
 	config := &Config{
-		XiheUsername: xiheUser,
-		KubeConfig:   kubeconfig,
-		Namespace:    namespace,
-		Appconfig:    dstAppConfig,
-		Deployconfig: dstDeployConfig,
+		XiheUsername:  xiheUser,
+		KubeConfig:    kubeconfig,
+		Namespace:     namespace,
+		Appconfig:     dstAppConfig,
+		Deployconfig:  dstDeployConfig,
+		StartupScript: dstStartupScript,
+		HeartbeatUrl:  heartbeatUrl,
 	}
 
 	if err := saveConfig(config); err != nil {
@@ -197,6 +251,8 @@ func runPrepare(xiheUser, kubeconfig, namespace string) {
 	fmt.Printf("  NAMESPACE: %s\n", namespace)
 	fmt.Printf("  APPCONFIG: %s\n", dstAppConfig)
 	fmt.Printf("  DEPLOYCONFIG: %s\n", dstDeployConfig)
+	fmt.Printf("  STARTUP_SCRIPT: %s\n", dstStartupScript)
+	fmt.Printf("  HEARTBEAT_URL: %s\n", heartbeatUrl)
 }
 
 func handleSync(fs *flag.FlagSet, args []string) {
@@ -332,9 +388,9 @@ func runRun(xiheUser string) {
 
 	fmt.Println("Restarting xihe-server inside pod...")
 	exec.Command("kubectl", "exec", "-n", config.Namespace, state.PodName, // nosec: G204
-		"-c", "nocalhost-dev", "--kubeconfig", config.KubeConfig, "--", "p", "xihe-server").Run()
+		"-c", "nocalhost-dev", "--kubeconfig", config.KubeConfig, "--", "pkill", "xihe-server").Run()
 
-	startupScript := "/home/nocalhost-dev/.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/startup.sh"
+	startupScript := config.StartupScript
 	runCmd := exec.Command("kubectl", "exec", "-n", config.Namespace, state.PodName, // nosec: G204
 		"-c", "nocalhost-dev", "--kubeconfig", config.KubeConfig, "--",
 		"bash", "-c", fmt.Sprintf("export XIHE_USERNAME=%s; nohup bash %s > server.log 2>&1 &", xiheUser, startupScript),
@@ -475,8 +531,25 @@ func handleOneclickstart(fs *flag.FlagSet, args []string) {
 		runForward("8092", "8000")
 	}()
 
-	fmt.Println("\n[6/6] Tailing logs...")
-	runLogs(true)
+	fmt.Println("\n[6/6] Waiting for server to be ready...")
+	ready := false
+	for i := 0; i < 30; i++ {
+		time.Sleep(2 * time.Second)
+		if checkServerHeartbeat() {
+			ready = true
+			break
+		}
+		fmt.Print(".")
+	}
+	if ready {
+		fmt.Println("\n\n========== SERVER READY ==========")
+		fmt.Println("Heartbeat OK: http://localhost:8092/internal/heartbeat")
+		fmt.Println("API docs: http://localhost:8092/swagger/index.html")
+	} else {
+		fmt.Println("\n\n========== SERVER START FAILED ==========")
+		fmt.Println("Heartbeat check timed out. Run 'logs' to debug.")
+		os.Exit(1)
+	}
 }
 
 func handleStatus(fs *flag.FlagSet, args []string) {
@@ -485,6 +558,11 @@ func handleStatus(fs *flag.FlagSet, args []string) {
 }
 
 func runStatus() {
+	if _, err := os.Stat(getConfigPath()); os.IsNotExist(err) {
+		printStatus("not_prepared", "", "prepare")
+		return
+	}
+
 	state, err := loadState()
 	if err != nil {
 		printStatus("uninstalled", "", "oneclickstart")
@@ -521,7 +599,8 @@ func checkPodRunning(podName, namespace, kubeconfig string) bool {
 }
 
 func checkServerHeartbeat() bool {
-	cmd := exec.Command("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:8092/internal/heartbeat")
+	config, _ := loadConfig()
+	cmd := exec.Command("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", config.HeartbeatUrl)
 	output, err := cmd.Output()
 	if err != nil {
 		return false
