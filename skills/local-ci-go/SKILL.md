@@ -1,6 +1,6 @@
 ---
 name: local-ci-go
-description: Run CI checks locally for Go projects before pushing code. Includes unit test coverage validation (10% baseline, 80% incremental), security scanning with Gosec, and sensitive information detection with Gitleaks. Use when you want to verify code quality, catch security issues, or validate test coverage before committing. Triggers on requests like "run CI checks", "check test coverage", "scan for secrets", "run security checks", or any mention of local CI validation for Go projects. Supports Linux and macOS.
+description: Run CI checks locally for Go projects before pushing code. Includes unit test coverage validation (10% baseline, 80% incremental), security scanning with Gosec, and sensitive information detection with Gitleaks. Use when you want to verify code quality, catch security issues, or validate test coverage before committing. Triggers on requests like "run CI checks", "check test coverage", "scan for secrets", "run security checks", or any mention of local CI validation for Go projects. Supports Linux, macOS, and Windows.
 ---
 
 # Local CI for Go Projects
@@ -24,7 +24,7 @@ This skill provides three essential CI checks for Go projects:
    - Tool: `gitleaks`
    - Detects: API keys, passwords, tokens, private keys, etc.
 
-**Platform Support**: Linux and macOS
+**Platform Support**: Linux, macOS, and Windows
 
 ## Quick Start
 

@@ -16,6 +16,13 @@ A comprehensive CI skill for Go projects that runs locally before pushing code.
 - Checks for command injection risks
 - And 50+ other security issues
 
+✅ **🆕 Automated Security Fixes**
+- AI-powered intelligent fix suggestions
+- Iterative fix and verify workflow
+- Detailed fix reports and tracking
+- Supports G101, G104, G304, G401-G406 rules
+- See [SECURITY-FIX.md](SECURITY-FIX.md) for details
+
 ✅ **Secret Detection (Gitleaks)**
 - Scans for API keys and tokens
 - Detects passwords and credentials
@@ -27,26 +34,45 @@ A comprehensive CI skill for Go projects that runs locally before pushing code.
 
 ### 1. Check Prerequisites
 
+**Linux/macOS:**
 ```bash
 bash .claude/skills/local-ci-go/scripts/check_prerequisites.sh
 ```
 
+**Windows (PowerShell):**
+```powershell
+.\.claude\skills\local-ci-go\scripts\check_prerequisites.ps1
+```
+
 ### 2. Install Missing Tools
 
+**Linux/macOS:**
 ```bash
 bash .claude/skills/local-ci-go/scripts/install_tools.sh
 ```
 
+**Windows (PowerShell):**
+```powershell
+.\.claude\skills\local-ci-go\scripts\install_tools.ps1
+```
+
 ### 3. Run All Checks
 
+**Linux/macOS:**
 ```bash
 bash .claude/skills/local-ci-go/scripts/run_all_checks.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+.\.claude\skills\local-ci-go\scripts\run_all_checks.ps1
 ```
 
 ## Individual Checks
 
 Run specific checks independently:
 
+**Linux/macOS:**
 ```bash
 # Test coverage
 bash .claude/skills/local-ci-go/scripts/run_tests.sh
@@ -56,6 +82,23 @@ bash .claude/skills/local-ci-go/scripts/run_security.sh
 
 # Secret detection
 bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+# Test coverage
+.\.claude\skills\local-ci-go\scripts\run_tests.ps1
+
+# Security scan
+.\.claude\skills\local-ci-go\scripts\run_security.ps1
+
+# Secret detection
+.\.claude\skills\local-ci-go\scripts\run_gitleaks.ps1
+
+# Secret detection with different modes
+.\.claude\skills\local-ci-go\scripts\run_gitleaks.ps1 -ScanMode staged
+.\.claude\skills\local-ci-go\scripts\run_gitleaks.ps1 -ScanMode uncommitted
+.\.claude\skills\local-ci-go\scripts\run_gitleaks.ps1 -ScanMode history
 ```
 
 ## Configuration
@@ -161,6 +204,22 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+## Security Auto-Fix
+
+When security issues are found, you can automatically fix them:
+
+**Linux/macOS:**
+```bash
+bash .claude/skills/local-ci-go/scripts/security-fix/orchestrator.sh --auto-fix
+```
+
+**Windows:**
+```powershell
+.\.claude\skills\local-ci-go\scripts\security-fix\orchestrator.ps1 -AutoFix
+```
+
+See [SECURITY-FIX.md](SECURITY-FIX.md) for complete documentation.
+
 ## Troubleshooting
 
 ### Tool Not Found
@@ -198,7 +257,7 @@ go test ./...
 
 - Go 1.16+
 - Git (for incremental coverage)
-- Linux or macOS
+- Linux, macOS, or Windows
 
 ## Tools Installed
 
