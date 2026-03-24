@@ -75,6 +75,20 @@ Generate YAML to `tests/nocalhost-test/<group>/<endpoint>.yaml`:
 ### Output
 Save to `tests/nocalhost-test/cloud/pod_history.yaml`
 
+## Test Case Review Loop
+
+After generating the test cases:
+
+1. Dispatch a single `test-case-reviewer` subagent (see test-case-reviewer-prompt.md) with precisely crafted review context — never your session history. This keeps the reviewer focused on the test cases, not your thought process.
+   - Provide: path to the generated YAML test case file, path to the source Go controller file.
+2. If ❌ Issues Found: fix the issues (e.g., incorrect URL, missing parameters, wrong status codes), re-dispatch reviewer for the whole file.
+3. If ✅ Approved: proceed to next steps (initialization and execution).
+
+**Review loop guidance:**
+- Same agent that generated the test cases fixes them (preserves context).
+- If loop exceeds 3 iterations, surface to human for guidance.
+- Reviewers are advisory — explain disagreements if you believe feedback is incorrect.
+
 ## Refine Mode (Step 4)
 
 After test execution (via nocalhost-test-execution skill), review the generated report at `tests/nocalhost-test-report/{timestamp}report.md` to identify failing tests.
