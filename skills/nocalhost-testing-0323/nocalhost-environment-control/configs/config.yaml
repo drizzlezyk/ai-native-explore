@@ -1,0 +1,24 @@
+name: xihe-server
+resourcePath: ["deployments/xihe-server"]
+serviceType: deployment
+containers:
+  - name: xihe-server
+    dev:
+      gitUrl: ""
+      image: golang:1.24
+      shell: bash
+      workDir: /home/nocalhost-dev
+      storageClass: ""
+      resources: null
+      persistentVolumeDirs: []
+      command: null
+      debug: null
+      sync: null
+      env:
+        - name: GOCACHE
+          value: /home/nocalhost-dev/.cache/go-build
+        - name: GOPROXY
+          value: https://goproxy.cn,direct
+        - name: HOME
+          value: /home/nocalhost-dev
+      portForward: []

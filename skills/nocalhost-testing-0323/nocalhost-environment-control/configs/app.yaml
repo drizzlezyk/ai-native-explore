@@ -1,0 +1,11 @@
+configProperties:  
+  version: v2  
+application:  
+  services:  
+    - name: xihe-server  
+      serviceType: deployment  
+      containers:  
+        - name: xihe-server  
+          dev:  
+            image: golang:1.24  
+            shell: /bin/bash
