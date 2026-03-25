@@ -15,8 +15,9 @@ import (
 )
 
 func handleForward(fs *flag.FlagSet, args []string) {
+	config, _ := loadConfig()
 	localPort := fs.String("lp", "8092", "Local port")
-	remotePort := fs.String("rp", "8000", "Remote port")
+	remotePort := fs.String("rp", config.RemotePort, "Remote port")
 	fs.Parse(args)
 	runForward(*localPort, *remotePort)
 }
@@ -47,7 +48,7 @@ func handleUp(fs *flag.FlagSet, args []string) {
 		os.Exit(1)
 	}
 
-	if config.AppName == "" {
+	if config.DeveloperName == "" {
 		fmt.Println("Error: APP_NAME not configured. Run 'prepare' first.")
 		os.Exit(1)
 	}
@@ -68,19 +69,19 @@ func runUp(namespace string) {
 		os.Exit(1)
 	}
 
-	appName := config.AppName
+	developerName := config.DeveloperName
 	config.Namespace = namespace
 	// nosec: G104
 	saveConfig(config)
 
-	projectName := config.OrigDeployName + "-" + appName
+	projectName := config.OrigDeployName + "-" + developerName
 	fmt.Printf("Starting nocalhost dev for %s in namespace %s...\n", projectName, namespace)
 
 	fmt.Println("\n[1/3] Checking application installation...")
 	installCmd := exec.Command("nhctl", "install", projectName,
 		"-n", namespace,
 		"--type", "rawManifestLocal",
-		"--local-path", ".",
+		"--local-path", config.ProjectPath,
 		"--outer-config", config.Appconfig,
 		"--kubeconfig", config.KubeConfig,
 	)
@@ -90,6 +91,7 @@ func runUp(namespace string) {
 	installCmd.Run()
 
 	fmt.Println("\n[2/3] Starting dev mode (duplicate mode)...")
+
 	startArgs := []string{"dev", "start", projectName,
 		"-n", namespace,
 		"-d", config.OrigDeployName,
@@ -98,7 +100,7 @@ func runUp(namespace string) {
 		"--kubeconfig", config.KubeConfig,
 		"--without-terminal",
 		"--without-sync",
-		"--local-sync", ".",
+		"--local-sync", config.ProjectPath,
 	}
 
 	cmd := exec.Command("nhctl", startArgs...)
@@ -118,16 +120,65 @@ func runUp(namespace string) {
 	if deployName == "" || podName == "" {
 		fmt.Println("Error: Failed to extract deployment or pod name from nhctl output.")
 		fmt.Println("Attempting manual discovery...")
-		discCmd := exec.Command("kubectl", "get", "pod", "-n", namespace, // nosec: G204
-			"-l", fmt.Sprintf("nocalhost.application.name=%s,dev.nocalhost.io/container=nocalhost-dev", projectName),
+		discCmd := exec.Command("kubectl", "get", "deployment", "-n", namespace, // nosec: G204
+			"-l", fmt.Sprintf("origin-workload-name=%s", config.OrigDeployName),
 			"-o", "jsonpath={.items[0].metadata.name}",
 			"--kubeconfig", config.KubeConfig,
 		)
-		// nosec: G104
 		out, _ := discCmd.Output()
-		podName = string(out)
-		deployName = projectName
+		deployName = strings.TrimSpace(string(out))
+		if deployName != "" {
+			getPodCmd := exec.Command("kubectl", "get", "pod", "-n", namespace, // nosec: G204
+				"-l", fmt.Sprintf("identifier=%s", deployName),
+				"-o", "jsonpath={.items[0].metadata.name}",
+				"--kubeconfig", config.KubeConfig,
+			)
+			podOut, _ := getPodCmd.Output()
+			podName = strings.TrimSpace(string(podOut))
+		}
+		if deployName == "" {
+			deployName = projectName
+		}
 	}
+
+	fmt.Println("\nPatching deployment with runAsUser=0 and DAC_OVERRIDE...")
+	patchArgs := []string{"patch", "deployment", deployName,
+		"-n", namespace,
+		"--type=json",
+		"-p=[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/securityContext/runAsUser\",\"value\":0},{\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/securityContext/capabilities/add\",\"value\":[\"DAC_OVERRIDE\"]},{\"op\":\"remove\",\"path\":\"/spec/template/spec/containers/0/securityContext/capabilities/drop\"}]",
+		"--kubeconfig", config.KubeConfig,
+	}
+	patchCmd := exec.Command("kubectl", patchArgs...) // nosec: G204
+	patchCmd.Stdout = os.Stdout
+	patchCmd.Stderr = os.Stderr
+	// nosec: G104
+	patchCmd.Run()
+
+	fmt.Println("Restarting deployment...")
+
+	rolloutCmd := exec.Command("kubectl", "rollout", "restart", "deployment", deployName, // nosec: G204
+		"-n", namespace, "--kubeconfig", config.KubeConfig)
+	rolloutCmd.Stdout = os.Stdout
+	rolloutCmd.Stderr = os.Stderr
+	// nosec: G104
+	rolloutCmd.Run()
+
+	fmt.Println("Waiting for rollout to complete...")
+	rolloutStatusCmd := exec.Command("kubectl", "rollout", "status", "deployment", deployName, // nosec: G204
+		"-n", namespace, "--kubeconfig", config.KubeConfig)
+	rolloutStatusCmd.Stdout = os.Stdout
+	rolloutStatusCmd.Stderr = os.Stderr
+	// nosec: G104
+	rolloutStatusCmd.Run()
+
+	fmt.Println("Getting newest pod...")
+	getPodCmd := exec.Command("kubectl", "get", "pod", "-n", namespace, // nosec: G204
+		"-l", fmt.Sprintf("origin-workload-name=%s", config.OrigDeployName),
+		"--sort-by=.metadata.creationTimestamp",
+		"-o", "jsonpath={.items[-1].metadata.name}",
+		"--kubeconfig", config.KubeConfig)
+	out, _ := getPodCmd.Output()
+	podName = strings.TrimSpace(string(out))
 
 	state := &RuntimeState{
 		PodName:     podName,
@@ -142,22 +193,29 @@ func runUp(namespace string) {
 }
 
 func handlePrepare(fs *flag.FlagSet, args []string) {
-	appName := fs.String("app-name", "", "App name (required)")
+	developerName := fs.String("developer-name", "", "Developer name (required)")
 	kubeconfig := fs.String("kubeconfig", "", "KubeConfig path (required)")
-	namespace := fs.String("namespace", "xihe-test-v2", "Kubernetes namespace")
-	heartbeatUrl := fs.String("heartbeat-url", "http://localhost:8092/internal/heartbeat", "Heartbeat URL for readiness check")
-	origDeployName := fs.String("orig-deploy-name", "xihe-server", "Original deployment name for nocalhost")
+	namespace := fs.String("namespace", "", "Kubernetes namespace (auto-detected from kubeconfig if not provided)")
+	heartbeatUrl := fs.String("heartbeat-url", "http://localhost:8092/internal/heartbeat", "Heartbeat URL for readiness check (auto-detected from Dockerfile EXPOSE if not provided)")
+	origDeployName := fs.String("orig-deploy-name", "", "Original deployment name in Kubernetes (auto-detected from deployment yaml if not provided)")
+	binaryName := fs.String("binary-name", "main", "Binary name to run/pkill (auto-detected from build.sh if not provided)")
+	projectPath := fs.String("project-path", "", "Project local path (defaults to current directory)")
+	remotePort := fs.String("remote-port", "5000", "Remote port for port-forward (auto-detected from Dockerfile EXPOSE if not provided)")
 	fs.Parse(args)
 
-	if *appName == "" {
-		fmt.Println("Error: --app-name is required")
+	if *developerName == "" {
+		fmt.Println("Error: --developer-name is required")
 		os.Exit(1)
 	}
 	if *kubeconfig == "" {
 		fmt.Println("Error: --kubeconfig is required")
 		os.Exit(1)
 	}
-	runPrepare(*appName, *kubeconfig, *namespace, *heartbeatUrl, *origDeployName)
+	if *projectPath == "" {
+		cwd, _ := os.Getwd()
+		*projectPath = cwd
+	}
+	runPrepare(*developerName, *kubeconfig, *namespace, *heartbeatUrl, *origDeployName, *binaryName, *projectPath, *remotePort)
 }
 
 func GetSkillRoot() (string, error) {
@@ -198,7 +256,7 @@ func GetSkillRoot() (string, error) {
 	return "", fmt.Errorf("skill root not found")
 }
 
-func runPrepare(appName, kubeconfig, namespace, heartbeatUrl, origDeployName string) {
+func runPrepare(developerName, kubeconfig, namespace, heartbeatUrl, origDeployName, binaryName, projectPath, remotePort string) {
 	if err := ensureNocalhostDir(); err != nil {
 		fmt.Printf("Error creating .nocalhost directory: %v\n", err)
 		os.Exit(1)
@@ -215,8 +273,10 @@ func runPrepare(appName, kubeconfig, namespace, heartbeatUrl, origDeployName str
 	dstDeployConfig := ".nocalhost/config.yaml"
 	srcStartupScript := filepath.Join(appPath, "scripts", "startup.sh")
 	dstStartupScript := ".nocalhost/startup.sh"
+	srcBuildScript := filepath.Join(appPath, "scripts", "build.sh")
+	dstBuildScript := ".nocalhost/build.sh"
 
-	if err := copyFileIfNotExists(srcAppConfig, dstAppConfig); err != nil {
+	if err := copyConfigWithInjection(srcAppConfig, dstAppConfig, origDeployName); err != nil {
 		fmt.Printf("Error copying app.yaml: %v\n", err)
 		os.Exit(1)
 	}
@@ -231,15 +291,24 @@ func runPrepare(appName, kubeconfig, namespace, heartbeatUrl, origDeployName str
 		os.Exit(1)
 	}
 
+	if err := copyFileIfNotExists(srcBuildScript, dstBuildScript); err != nil {
+		fmt.Printf("Error copying build.sh: %v\n", err)
+		os.Exit(1)
+	}
+
 	config := &Config{
-		AppName:        appName,
+		DeveloperName:  developerName,
 		KubeConfig:     kubeconfig,
 		Namespace:      namespace,
 		Appconfig:      dstAppConfig,
 		Deployconfig:   dstDeployConfig,
 		StartupScript:  dstStartupScript,
+		BuildScript:    dstBuildScript,
 		HeartbeatUrl:   heartbeatUrl,
 		OrigDeployName: origDeployName,
+		BinaryName:     binaryName,
+		ProjectPath:    projectPath,
+		RemotePort:     remotePort,
 	}
 
 	if err := saveConfig(config); err != nil {
@@ -248,14 +317,18 @@ func runPrepare(appName, kubeconfig, namespace, heartbeatUrl, origDeployName str
 	}
 
 	fmt.Println("Configuration saved successfully:")
-	fmt.Printf("  APP_NAME: %s\n", appName)
+	fmt.Printf("  DEVELOPER_NAME: %s\n", developerName)
 	fmt.Printf("  KUBECONFIG: %s\n", kubeconfig)
 	fmt.Printf("  NAMESPACE: %s\n", namespace)
 	fmt.Printf("  APPCONFIG: %s\n", dstAppConfig)
 	fmt.Printf("  DEPLOYCONFIG: %s\n", dstDeployConfig)
 	fmt.Printf("  STARTUP_SCRIPT: %s\n", dstStartupScript)
+	fmt.Printf("  BUILD_SCRIPT: %s\n", dstBuildScript)
 	fmt.Printf("  HEARTBEAT_URL: %s\n", heartbeatUrl)
 	fmt.Printf("  ORIG_DEPLOY_NAME: %s\n", origDeployName)
+	fmt.Printf("  BINARY_NAME: %s\n", binaryName)
+	fmt.Printf("  PROJECT_PATH: %s\n", projectPath)
+	fmt.Printf("  REMOTE_PORT: %s\n", remotePort)
 }
 
 func handleSync(fs *flag.FlagSet, args []string) {
@@ -356,10 +429,10 @@ func runBuild() {
 	}
 	config, _ := loadConfig()
 
-	fmt.Println("Building xihe-server inside pod...")
+	fmt.Printf("Building %s inside pod...\n", config.OrigDeployName)
 	buildCmd := exec.Command("kubectl", "exec", "-n", config.Namespace, state.PodName, // nosec: G204
 		"-c", "nocalhost-dev", "--kubeconfig", config.KubeConfig, "--",
-		"bash", "-c", "cd /home/nocalhost-dev && go build --buildvcs=false -mod=vendor .",
+		"bash", "/home/nocalhost-dev/.nocalhost/build.sh",
 	)
 	buildCmd.Stdout = os.Stdout
 	buildCmd.Stderr = os.Stderr
@@ -372,15 +445,15 @@ func runBuild() {
 
 func handleRun(fs *flag.FlagSet, args []string) {
 	config, _ := loadConfig()
-	appName := fs.String("user", getEnvOrDefault("APP_NAME", config.AppName), "App name for auth bypass")
+	developerName := fs.String("user", getEnvOrDefault("DEVELOPER_NAME", config.DeveloperName), "Developer name for auth bypass")
 	fs.Parse(args)
-	runRun(*appName)
+	runRun(*developerName)
 }
 
-func runRun(appName string) {
+func runRun(developerName string) {
 	config, _ := loadConfig()
-	if appName == "" {
-		appName = getEnvOrDefault("APP_NAME", config.AppName)
+	if developerName == "" {
+		developerName = getEnvOrDefault("DEVELOPER_NAME", config.DeveloperName)
 	}
 
 	state, err := loadState()
@@ -389,14 +462,13 @@ func runRun(appName string) {
 		os.Exit(1)
 	}
 
-	fmt.Println("Restarting xihe-server inside pod...")
+	fmt.Printf("Restarting %s inside pod...\n", config.OrigDeployName)
 	exec.Command("kubectl", "exec", "-n", config.Namespace, state.PodName, // nosec: G204
-		"-c", "nocalhost-dev", "--kubeconfig", config.KubeConfig, "--", "pkill", "xihe-server").Run()
+		"-c", "nocalhost-dev", "--kubeconfig", config.KubeConfig, "--", "pkill", config.BinaryName).Run()
 
-	startupScript := config.StartupScript
 	runCmd := exec.Command("kubectl", "exec", "-n", config.Namespace, state.PodName, // nosec: G204
 		"-c", "nocalhost-dev", "--kubeconfig", config.KubeConfig, "--",
-		"bash", "-c", fmt.Sprintf("export APP_NAME=%s; nohup bash %s > server.log 2>&1 &", appName, startupScript),
+		"bash", "-c", fmt.Sprintf("export DEVELOPER_NAME=%s; nohup bash /home/nocalhost-dev/.nocalhost/startup.sh > server.log 2>&1 &", developerName),
 	)
 	if err := runCmd.Run(); err != nil {
 		fmt.Printf("Failed to start server: %v\n", err)
@@ -405,23 +477,23 @@ func runRun(appName string) {
 	fmt.Println("Server started in background. Check 'logs' for output.")
 }
 
-func handleRunWithUser(appName string) {
-	runRun(appName)
+func handleRunWithUser(developerName string) {
+	runRun(developerName)
 }
 
 func handleRebuild(fs *flag.FlagSet, args []string) {
 	config, _ := loadConfig()
-	appName := ""
+	developerName := ""
 	syncVendor := false
 	if fs != nil {
-		fs.StringVar(&appName, "user", getEnvOrDefault("APP_NAME", config.AppName), "App name for auth bypass")
+		fs.StringVar(&developerName, "user", getEnvOrDefault("DEVELOPER_NAME", config.DeveloperName), "Developer name for auth bypass")
 		fs.BoolVar(&syncVendor, "sync-vendor", false, "Include vendor directory in sync")
 		fs.Parse(args)
 	}
 
 	handleSyncWithVendor(syncVendor)
 	runBuild()
-	runRun(appName)
+	runRun(developerName)
 }
 
 func handleStop(fs *flag.FlagSet, args []string) {
@@ -437,9 +509,9 @@ func runStop() {
 	}
 	config, _ := loadConfig()
 
-	fmt.Println("Stopping xihe-server inside pod...")
+	fmt.Printf("Stopping %s inside pod...\n", config.OrigDeployName)
 	exec.Command("kubectl", "exec", "-n", config.Namespace, state.PodName, // nosec: G204
-		"-c", "nocalhost-dev", "--kubeconfig", config.KubeConfig, "--", "pkill", "xihe-server").Run() // nosec: G104
+		"-c", "nocalhost-dev", "--kubeconfig", config.KubeConfig, "--", "pkill", config.BinaryName).Run() // nosec: G104
 }
 
 func handleLogs(fs *flag.FlagSet, args []string) {
@@ -509,9 +581,13 @@ func runDown() {
 }
 
 func handleOneclickstart(fs *flag.FlagSet, args []string) {
-	nsFlag := fs.String("ns", "xihe-test-v2", "Kubernetes namespace")
+	nsFlag := fs.String("ns", "", "Kubernetes namespace")
 	fs.Parse(args)
 
+	config, _ := loadConfig()
+	if *nsFlag == "" {
+		*nsFlag = config.Namespace
+	}
 	ns := *nsFlag
 
 	fmt.Println("\n========== ONE CLICK START ==========")
@@ -526,12 +602,11 @@ func handleOneclickstart(fs *flag.FlagSet, args []string) {
 	runBuild()
 
 	fmt.Println("\n[4/6] Running server...")
-	config, _ := loadConfig()
-	runRun(config.AppName)
+	runRun(config.DeveloperName)
 
 	fmt.Println("\n[5/6] Starting port-forward...")
 	go func() {
-		runForward("8092", "8000")
+		runForward("8092", config.RemotePort)
 	}()
 
 	fmt.Println("\n[6/6] Waiting for server to be ready...")
@@ -561,30 +636,34 @@ func handleStatus(fs *flag.FlagSet, args []string) {
 }
 
 func runStatus() {
+	config, err := loadConfig()
+	if err != nil {
+		printStatus("unknown", "not_prepared", "", "prepare")
+		return
+	}
+
 	if _, err := os.Stat(getConfigPath()); os.IsNotExist(err) {
-		printStatus("not_prepared", "", "prepare")
+		printStatus(config.OrigDeployName, "not_prepared", "", "prepare")
 		return
 	}
 
 	state, err := loadState()
 	if err != nil {
-		printStatus("uninstalled", "", "oneclickstart")
+		printStatus(config.OrigDeployName, "uninstalled", "", "oneclickstart")
 		return
 	}
 
-	config, _ := loadConfig()
-
 	podRunning := checkPodRunning(state.PodName, config.Namespace, config.KubeConfig)
 	if !podRunning {
-		printStatus("uninstalled", "", "oneclickstart")
+		printStatus(config.OrigDeployName, "uninstalled", "", "oneclickstart")
 		return
 	}
 
 	serverRunning := checkServerHeartbeat()
 	if serverRunning {
-		printStatus("server_running", state.PodName, "rebuild")
+		printStatus(config.OrigDeployName, "server_running", state.PodName, "rebuild")
 	} else {
-		printStatus("pod_running", state.PodName, "rebuild --sync-vendor")
+		printStatus(config.OrigDeployName, "pod_running", state.PodName, "rebuild --sync-vendor")
 	}
 }
 
@@ -611,8 +690,8 @@ func checkServerHeartbeat() bool {
 	return strings.TrimSpace(string(output)) == "200"
 }
 
-func printStatus(state, podName, nextHint string) {
-	fmt.Printf("Xihe-server: %s\n", state)
+func printStatus(origDeployName, state, podName, nextHint string) {
+	fmt.Printf("%s: %s\n", origDeployName, state)
 	if podName != "" {
 		fmt.Printf("   Pod: %s\n", podName)
 	}
