@@ -29,6 +29,6 @@ if [ ! -f "/vault/secrets/application.yml" ]; then
 fi
 
 # 3. Start server
-echo "Starting xihe-server with DEVELOPER_NAME=${DEVELOPER_NAME}..."
+echo "Starting xihe-server with XIHE_USERNAME=${XIHE_USERNAME}..."
 export HOME=/home/nocalhost-dev
 ./xihe-server --port 8000 --config-file /vault/secrets/application.yml --enable_debug

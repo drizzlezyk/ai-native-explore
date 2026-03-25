@@ -28,54 +28,22 @@ Each step can also be invoked independently:
 ## Example Complete Workflow
 
 1. **Collect required variables**
-   Ask the user for the following information to prepare nocalhost configuration:
-
-   **Required fields (must provide):**
-   - `developer-name`: Your developer identifier
-   - `kubeconfig`: Path to kubeconfig file
-   - `namespace`: Kubernetes namespace (from kubeconfig context)
-   - `orig-deploy-name`: Original deployment name in Kubernetes
-   - `binary-name`: Binary name to run (from build.sh)
-   - `project-path`: Local project path (defaults to current directory)
-   - `remote-port`: Remote port for port-forward (from Dockerfile EXPOSE)
-   - `heartbeat-url`: Heartbeat URL for readiness check
-
-   **Fixed paths (auto-generated):**
-   - `appConfig`: `.nocalhost/app.yaml`
-   - `deployConfig`: `.nocalhost/config.yaml`
-   - `startupScript`: `.nocalhost/startup.sh` (from Dockerfile CMD/ENTRYPOINT)
-   - `buildScript`: `.nocalhost/build.sh` (from Dockerfile build commands)
-
-   **Example configuration:**
-   ```json
-   {
-     "developerName": "your-username",
-     "kubeConfig": "/path/to/kubeconfig",
-     "namespace": "your-namespace",
-     "appConfig": ".nocalhost/app.yaml",
-     "deployConfig": ".nocalhost/config.yaml",
-     "startupScript": ".nocalhost/startup.sh",
-     "buildScript": ".nocalhost/build.sh",
-     "heartbeatUrl": "http://localhost:5000/",
-     "origDeployName": "your-deployment-name",
-     "binaryName": "main",
-     "projectPath": "/path/to/project",
-     "remotePort": "5000"
-   }
-   ```
-
-   **Run prepare with --help to see all options:**
-   ```bash
-   go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl prepare --help
-   ```
+   Ask the user for required environment variables:
+   - `xihe-username`: Your Xihe username (or use XIHE_USERNAME env var)
+   - `kubeconfig`: Path to kubeconfig file (default: ~/.kube/xihe-test-v2_kubeconfig)
 
 2. **Initialize environment**
    First prepare the environment with the collected variables:
 
    ```bash
-   go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl status
 
-   go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl oneclickstart
+    go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl status
+
+   go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl prepare \
+     --xihe-user="$XIHE_USERNAME" \
+     --kubeconfig="$KUBECONFIG_PATH"
+
+    go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl --help       
    ```
    Then dispatch a subagent to set up the testing environment using the task tool:
 
@@ -94,13 +62,13 @@ Use the nocalhost-test-management skill to create test case templates.
 Run the test runner:
 
 ``` bash
-go run -tags debug .ai/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
+go run -tags debug .opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
   --url=http://localhost:8092 \
   --group=cloud \
-  --user=$DEVELOPER_NAME
+  --user=$XIHE_USERNAME
 
 
-go run -tags debug .ai/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go --help  
+go run -tags debug .opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go --help  
 ```
 
 5. Refine test cases

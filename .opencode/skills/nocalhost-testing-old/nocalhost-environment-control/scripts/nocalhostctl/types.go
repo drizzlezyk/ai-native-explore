@@ -3,18 +3,14 @@
 package main
 
 type Config struct {
-	DeveloperName  string `json:"developerName"`
+	AppName        string `json:"appName"`
 	KubeConfig     string `json:"kubeConfig"`
 	Namespace      string `json:"namespace"`
 	Appconfig      string `json:"appConfig"`
 	Deployconfig   string `json:"deployConfig"`
 	StartupScript  string `json:"startupScript"`
-	BuildScript    string `json:"buildScript"`
 	HeartbeatUrl   string `json:"heartbeatUrl"`
 	OrigDeployName string `json:"origDeployName"`
-	BinaryName     string `json:"binaryName"`
-	ProjectPath    string `json:"projectPath"`
-	RemotePort     string `json:"remotePort"`
 }
 
 type RuntimeState struct {

@@ -1,8 +1,8 @@
-name: __ORIGINAL_DEPLOY_NAME__
-resourcePath: ["deployments/__ORIGINAL_DEPLOY_NAME__"]
+name: xihe-server
+resourcePath: ["deployments/xihe-server"]
 serviceType: deployment
 containers:
-  - name: __ORIGINAL_DEPLOY_NAME__
+  - name: xihe-server
     dev:
       gitUrl: ""
       image: golang:1.24

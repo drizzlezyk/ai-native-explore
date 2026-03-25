@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -19,17 +18,13 @@ import (
 )
 
 type TestCase struct {
-	Name           string            `yaml:"name"`
-	URL            string            `yaml:"url"`
-	Method         string            `yaml:"method"`
-	ExpectedStatus int               `yaml:"expected_status"`
-	AuthRequired   bool              `yaml:"auth_required"`
-	AuthUsername   string            `yaml:"auth_username"`
-	AuthPassword   string            `yaml:"auth_password"`
-	QueryParams    []QueryParam      `yaml:"query_params"`
-	Body           string            `yaml:"body"`
-	Headers        map[string]string `yaml:"headers"`
-	Description    string            `yaml:"description"`
+	Name           string       `yaml:"name"`
+	URL            string       `yaml:"url"`
+	Method         string       `yaml:"method"`
+	ExpectedStatus int          `yaml:"expected_status"`
+	AuthRequired   bool         `yaml:"auth_required"`
+	QueryParams    []QueryParam `yaml:"query_params"`
+	Description    string       `yaml:"description"`
 }
 
 type QueryParam struct {
@@ -46,24 +41,21 @@ var group string
 var testUsername string
 
 type TestResult struct {
-	Name           string            `yaml:"name"`
-	URL            string            `yaml:"url"`
-	Method         string            `yaml:"method"`
-	QueryParams    []QueryParam      `yaml:"query_params"`
-	Body           string            `yaml:"body,omitempty"`
-	Headers        map[string]string `yaml:"headers,omitempty"`
-	ExpectedStatus int               `yaml:"expected_status"`
-	ActualStatus   int               `yaml:"actual_status"`
-	AuthRequired   bool              `yaml:"auth_required"`
-	AuthUsername   string            `yaml:"auth_username,omitempty"`
-	Description    string            `yaml:"description"`
-	Passed         bool              `yaml:"passed"`
-	Skipped        bool              `yaml:"skipped"`
-	SkipReason     string            `yaml:"skip_reason,omitempty"`
-	Error          string            `yaml:"error,omitempty"`
-	ResponseBody   string            `yaml:"response_body,omitempty"`
-	Timestamp      string            `yaml:"timestamp"`
-	SourceFile     string            `yaml:"source_file"`
+	Name           string       `yaml:"name"`
+	URL            string       `yaml:"url"`
+	Method         string       `yaml:"method"`
+	QueryParams    []QueryParam `yaml:"query_params"`
+	ExpectedStatus int          `yaml:"expected_status"`
+	ActualStatus   int          `yaml:"actual_status"`
+	AuthRequired   bool         `yaml:"auth_required"`
+	Description    string       `yaml:"description"`
+	Passed         bool         `yaml:"passed"`
+	Skipped        bool         `yaml:"skipped"`
+	SkipReason     string       `yaml:"skip_reason,omitempty"`
+	Error          string       `yaml:"error,omitempty"`
+	ResponseBody   string       `yaml:"response_body,omitempty"`
+	Timestamp      string       `yaml:"timestamp"`
+	SourceFile     string       `yaml:"source_file"`
 }
 
 type TestCaseWithSource struct {
@@ -76,24 +68,12 @@ func printHelp() {
 	fmt.Println("")
 	fmt.Println("Flags:")
 	fmt.Println("  -url string     Base URL of the server (default: http://localhost:8092)")
-	fmt.Println("  -group string   Test group to run, e.g. cloud, user, github (default: cloud)")
-	fmt.Println("  -user string    Username for auth bypass (default: DEVELOPER_NAME env var)")
-	fmt.Println("")
-	fmt.Println("YAML Test Case Fields:")
-	fmt.Println("  - name: Test description")
-	fmt.Println("  - url: /api/endpoint")
-	fmt.Println("  - method: GET|POST|PUT|PATCH|DELETE")
-	fmt.Println("  - expected_status: 200")
-	fmt.Println("  - auth_required: true|false")
-	fmt.Println("  - auth_username: username (for Basic Auth)")
-	fmt.Println("  - auth_password: password (for Basic Auth, or use GITHUB_TOKEN env var)")
-	fmt.Println("  - body: '{\"key\":\"value\"}' (for POST/PUT/PATCH)")
-	fmt.Println("  - headers: {Content-Type: application/json}")
-	fmt.Println("  - query_params: [{key: value}]")
+	fmt.Println("  -group string   Test group to run, e.g. cloud, user (default: cloud)")
+	fmt.Println("  -user string    Username for auth bypass (default: XIHE_USERNAME env var)")
 	fmt.Println("")
 	fmt.Println("Examples:")
 	fmt.Println("  runner --url=http://localhost:8092 --group=cloud")
-	fmt.Println("  runner --group=github --user=ccijunk")
+	fmt.Println("  runner --group=user --user=testuser")
 }
 
 func loadTestCases(group string) ([]TestCaseWithSource, error) {
@@ -147,34 +127,9 @@ func executeTestCase(tc TestCase) (bool, int, string, string, error) {
 		reqURL += "?" + q.Encode()
 	}
 
-	var bodyReader io.Reader
-	if tc.Body != "" {
-		bodyReader = strings.NewReader(tc.Body)
-	}
-
-	req, err := http.NewRequest(tc.Method, reqURL, bodyReader)
+	req, err := http.NewRequest(tc.Method, reqURL, nil)
 	if err != nil {
 		return false, 0, "", "", err
-	}
-
-	if tc.Headers != nil {
-		for key, value := range tc.Headers {
-			req.Header.Set(key, value)
-		}
-	}
-
-	if tc.AuthRequired {
-		username := tc.AuthUsername
-		password := tc.AuthPassword
-		if username == "" {
-			username = testUsername
-		}
-		if password == "" {
-			password = os.Getenv("GITHUB_TOKEN")
-		}
-		if username != "" && password != "" {
-			req.SetBasicAuth(username, password)
-		}
 	}
 
 	client := &http.Client{}
@@ -198,10 +153,18 @@ func executeTestCase(tc TestCase) (bool, int, string, string, error) {
 	return passed, resp.StatusCode, paramsStr, bodyStr, nil
 }
 
+func promptForUsername() string {
+	fmt.Print("Enter username for auth bypass: ")
+	var username string
+	// nosec: G104
+	fmt.Scanln(&username)
+	return username
+}
+
 func main() {
 	flag.StringVar(&baseURL, "url", "http://localhost:8092", "Base URL of the server")
 	flag.StringVar(&group, "group", "cloud", "Test group to run (cloud, user, etc.)")
-	flag.StringVar(&testUsername, "user", os.Getenv("DEVELOPER_NAME"), "Username for auth bypass (default: DEVELOPER_NAME env var)")
+	flag.StringVar(&testUsername, "user", os.Getenv("XIHE_USERNAME"), "Username for auth bypass (default: XIHE_USERNAME env var)")
 
 	if len(os.Args) > 1 && (os.Args[1] == "--help" || os.Args[1] == "-h" || os.Args[1] == "help") {
 		printHelp()
@@ -211,8 +174,7 @@ func main() {
 	flag.Parse()
 
 	if testUsername == "" {
-		fmt.Println("Error: --user flag or DEVELOPER_NAME env var is required")
-		os.Exit(1)
+		testUsername = promptForUsername()
 	}
 
 	cases, err := loadTestCases(group)
@@ -234,11 +196,8 @@ func main() {
 			URL:            tc.URL,
 			Method:         tc.Method,
 			QueryParams:    tc.QueryParams,
-			Body:           tc.Body,
-			Headers:        tc.Headers,
 			ExpectedStatus: tc.ExpectedStatus,
 			AuthRequired:   tc.AuthRequired,
-			AuthUsername:   tc.AuthUsername,
 			Description:    tc.Description,
 			Timestamp:      time.Now().Format(time.RFC3339),
 			SourceFile:     tc.SourceFile,
@@ -331,14 +290,6 @@ func writeReport(results []TestResult, passed, failed int) {
 				for _, p := range r.QueryParams {
 					buf.WriteString(fmt.Sprintf("  - `%s`: `%s`\n", p.Key, p.Value))
 				}
-			}
-
-			if r.Body != "" {
-				buf.WriteString(fmt.Sprintf("- **Body**: ```\n%s\n```\n", r.Body))
-			}
-
-			if r.AuthUsername != "" {
-				buf.WriteString(fmt.Sprintf("- **Auth**: `%s:**`\n", r.AuthUsername))
 			}
 
 			if r.Passed {

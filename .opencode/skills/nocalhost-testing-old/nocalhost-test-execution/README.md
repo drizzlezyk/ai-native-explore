@@ -9,7 +9,7 @@ This skill handles test execution against running environment and report generat
 
 ## Purpose
 
-Execute test cases against a running ${DEPLOYMENT_NAME} instance and generate detailed test reports.
+Execute test cases against a running xihe-server instance and generate detailed test reports.
 
 ## Prerequisites
 
@@ -20,7 +20,7 @@ Execute test cases against a running ${DEPLOYMENT_NAME} instance and generate de
 ## Quick Start
 
 ```bash
-go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go --help
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go --help
 ```
 
 ## Available Flags
@@ -29,18 +29,18 @@ go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-test-execution/scrip
 |------|---------|-------------|
 | `--url` | http://localhost:8092 | Base URL of the server |
 | `--group` | cloud | Test group to run (cloud, user, etc.) |
-| `--user` | DEVELOPER_NAME env var | Username for auth bypass |
+| `--user` | XIHE_USERNAME env var | Username for auth bypass |
 
 ## Examples
 
 ```bash
 # Run cloud tests
-go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
   --url=http://localhost:8092 \
   --group=cloud
 
 # Run user tests with specific username
-go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
   --group=user \
   --user=testuser
 ```
@@ -77,7 +77,7 @@ Test cases are defined in YAML format at `tests/nocalhost-test/<group>/<endpoint
 
 When `auth_required: true` is set, the runner uses debug mode bypass:
 
-1. Username is taken from `--user` flag or `DEVELOPER_NAME` env var
+1. Username is taken from `--user` flag or `XIHE_USERNAME` env var
 2. If neither is set, prompts for username
 3. Server must be running with debug mode enabled
 
@@ -120,7 +120,7 @@ This is **Step 3** of the 4-step nocalhost testing workflow:
 | `test directory not found` | Ensure test cases exist at `tests/nocalhost-test/<group>/` |
 | `failed to parse YAML` | Check YAML syntax in test case files |
 | `connection refused` | Ensure server is running and port-forwarded |
-| `401 errors` | Ensure `--user` is set or `DEVELOPER_NAME` env var is configured |
+| `401 errors` | Ensure `--user` is set or `XIHE_USERNAME` env var is configured |
 | `expected status mismatch` | Verify expected status code matches actual API behavior |
 
 ## See Also
