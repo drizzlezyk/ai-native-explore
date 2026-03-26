@@ -69,6 +69,9 @@ if (Test-Path ".gitleaks.toml") {
 
 Write-Host ""
 
+# gitleaks writes status to stderr; prevent NativeCommandError when $ErrorActionPreference is "Stop"
+$ErrorActionPreference = "Continue"
+
 # Run scan based on mode
 switch ($ScanMode) {
     "staged" {
