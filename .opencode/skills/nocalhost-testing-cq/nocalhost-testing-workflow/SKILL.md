@@ -12,7 +12,7 @@ This skill orchestrates the complete nocalhost testing workflow by coordinating 
 ```
 1. nocalhost-environment-control: initialize (setup testing environment via subagent)
 2. nocalhost-test-management: generate (create test case templates)
-3. nocalhost-test-execution: validate (run tests and generate reports)
+3. nocalhost-test-execution: execute (run tests and generate reports)
 4. nocalhost-test-management: refine (improve test cases based on results)
 ```
 
@@ -28,61 +28,90 @@ Each step can also be invoked independently:
 ## Example Complete Workflow
 
 1. **Collect required variables**
-   Ask the user for the following information to prepare nocalhost configuration:
-
-   **Required fields (must provide):**
-   - `developer-name`: Your developer identifier
-   - `kubeconfig`: Path to kubeconfig file
-   - `namespace`: Kubernetes namespace (from kubeconfig context)
-   - `orig-deploy-name`: Original deployment name in Kubernetes
-   - `binary-name`: Binary name to run (from build.sh)
-   - `project-path`: Local project path (defaults to current directory)
-   - `remote-port`: Remote port for port-forward (from Dockerfile EXPOSE)
-   - `heartbeat-url`: Heartbeat URL for readiness check
-
-   **Fixed paths (auto-generated):**
-   - `appConfig`: `.nocalhost/app.yaml`
-   - `deployConfig`: `.nocalhost/config.yaml`
-   - `startupScript`: `.nocalhost/startup.sh` (from Dockerfile CMD/ENTRYPOINT)
-   - `buildScript`: `.nocalhost/build.sh` (from Dockerfile build commands)
-
-   **Example configuration:**
-   ```json
-   {
-     "developerName": "your-username",
-     "kubeConfig": "/path/to/kubeconfig",
-     "namespace": "your-namespace",
-     "appConfig": ".nocalhost/app.yaml",
-     "deployConfig": ".nocalhost/config.yaml",
-     "startupScript": ".nocalhost/startup.sh",
-     "buildScript": ".nocalhost/build.sh",
-     "heartbeatUrl": "http://localhost:5000/",
-     "origDeployName": "your-deployment-name",
-     "binaryName": "main",
-     "projectPath": "/path/to/project",
-     "remotePort": "5000"
-   }
+   
+   Follow the detailed rules in `preparecheck.md` to:
+   - Ask user for 8 required parameters
+   - Auto-derive 4 parameters by analyzing Dockerfile and server code
+   - **Generate startup.sh and build.sh** from templates in `.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/`
+   
+   **How to generate scripts:**
+   - Read template scripts from `scripts/startup.sh` and `scripts/build.sh`
+   - Parse Dockerfile to find: binary name, port, build flags, source path
+   - Search server code for heartbeat endpoint path
+   - Generate project-specific `.nocalhost/startup.sh` and `.nocalhost/build.sh`
+   
+   **Example generated startup.sh:**
+   ```bash
+   #!/bin/bash
+   set -e
+   # Setup templates...
+   mkdir -p /opt/app/points/task-docs-templates
+   cp ./points/infrastructure/taskdocimpl/*.tmpl /opt/app/points/task-docs-templates/ 2>/dev/null || true
+   # Start server
+   export HOME=/home/nocalhost-dev
+   ./xihe-server --port 8000 --config-file /vault/secrets/application.yml --enable_debug
+   ```
+   
+   **Example generated build.sh:**
+   ```bash
+   #!/bin/bash
+   set -e
+   export HOME=/home/nocalhost-dev
+   export GOCACHE=/home/nocalhost-dev/.cache/go-build
+   mkdir -p /home/nocalhost-dev/.cache
+   cd /home/nocalhost-dev
+   go build --buildvcs=false -mod=vendor -o xihe-server ./main.go
    ```
 
    **Run prepare with --help to see all options:**
    ```bash
-   go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl prepare --help
+   go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl prepare --help
    ```
+
+   **IMPORTANT**: 
+   - Verify ALL required fields are collected before proceeding
+   - Verify generated scripts match the Dockerfile and server code
+   - Missing any required field will cause the prepare command to fail
+
+   Then dispatch a subagent to check the prepare is ok:
+
+   ```javascript
+   task({
+     description: "check nocalhost testing environment is ok ",
+     prompt: "check nocalhost .config.json according to .opencode/skills/nocalhost-testing/nocalhost-environment-control/preparecheck.md. Also verify startup.sh and build.sh are correctly generated.",
+     subagent_type: "general"
+   })
+   ```
+
 
 2. **Initialize environment**
    First prepare the environment with the collected variables:
 
    ```bash
-   go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl status
+   go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl prepare \
+     --developer-name="$DEVELOPER_NAME" \
+     --kubeconfig="$KUBECONFIG_PATH" \
+     --namespace="$NAMESPACE" \
+     --orig-deploy-name="$ORIG_DEPLOY_NAME"
+   ```
 
-   go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl oneclickstart
+   **Auto-derived parameters** (do NOT pass as flags - derive from codebase):
+   - `binary-name`: from Dockerfile `go build -o <binary>`
+   - `project-path`: current working directory or specified
+   - `remote-port`: from Dockerfile EXPOSE or server code
+   - `heartbeat-url`: from server code `/heartbeat` endpoint
+
+   ```bash
+   go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl status
+
+   go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl oneclickstart
    ```
    Then dispatch a subagent to set up the testing environment using the task tool:
 
    ```javascript
    task({
      description: "Initialize nocalhost testing environment",
-     prompt: "Use the nocalhost-environment-control skill to set up the testing environment. oneclickstart.",
+     prompt: "Use the nocalhost-environment-control skill to set up the testing environment. Run oneclickstart after prepare.",
      subagent_type: "general"
    })
    ```
@@ -94,13 +123,13 @@ Use the nocalhost-test-management skill to create test case templates.
 Run the test runner:
 
 ``` bash
-go run -tags debug .ai/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
   --url=http://localhost:8092 \
   --group=cloud \
   --user=$DEVELOPER_NAME
 
 
-go run -tags debug .ai/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go --help  
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go --help  
 ```
 
 5. Refine test cases
