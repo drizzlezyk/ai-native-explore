@@ -7,6 +7,8 @@ description: Analyzes Go controller code and generates YAML test cases for API t
 
 This skill analyzes Go controller source files to extract API endpoint information and generates YAML test cases.
 
+**info you should know** `.open/skills/nocalhost-testing/nocalhost-test-management/implement.md`
+
 ## Usage
 
 When user asks to generate test cases for an API, provide:

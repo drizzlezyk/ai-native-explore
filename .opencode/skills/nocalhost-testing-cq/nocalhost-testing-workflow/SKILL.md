@@ -29,39 +29,7 @@ Each step can also be invoked independently:
 
 1. **Collect required variables**
    
-   Follow the detailed rules in `preparecheck.md` to:
-   - Ask user for 8 required parameters
-   - Auto-derive 4 parameters by analyzing Dockerfile and server code
-   - **Generate startup.sh and build.sh** from templates in `.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/`
-   
-   **How to generate scripts:**
-   - Read template scripts from `scripts/startup.sh` and `scripts/build.sh`
-   - Parse Dockerfile to find: binary name, port, build flags, source path
-   - Search server code for heartbeat endpoint path
-   - Generate project-specific `.nocalhost/startup.sh` and `.nocalhost/build.sh`
-   
-   **Example generated startup.sh:**
-   ```bash
-   #!/bin/bash
-   set -e
-   # Setup templates...
-   mkdir -p /opt/app/points/task-docs-templates
-   cp ./points/infrastructure/taskdocimpl/*.tmpl /opt/app/points/task-docs-templates/ 2>/dev/null || true
-   # Start server
-   export HOME=/home/nocalhost-dev
-   ./xihe-server --port 8000 --config-file /vault/secrets/application.yml --enable_debug
-   ```
-   
-   **Example generated build.sh:**
-   ```bash
-   #!/bin/bash
-   set -e
-   export HOME=/home/nocalhost-dev
-   export GOCACHE=/home/nocalhost-dev/.cache/go-build
-   mkdir -p /home/nocalhost-dev/.cache
-   cd /home/nocalhost-dev
-   go build --buildvcs=false -mod=vendor -o xihe-server ./main.go
-   ```
+   Follow the detailed rules in `preparecheck.md` to prepare enviroment
 
    **Run prepare with --help to see all options:**
    ```bash
@@ -82,6 +50,8 @@ Each step can also be invoked independently:
      subagent_type: "general"
    })
    ```
+
+   **Then ask user to check the prepare is ok**
 
 
 2. **Initialize environment**

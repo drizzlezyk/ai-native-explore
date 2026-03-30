@@ -21,7 +21,7 @@ These 4 parameters MUST be provided as CLI flags to `prepare`:
 
 ---
 
-### Auto-Derived Values (DO NOT ask user, calculate yourself)
+### Auto-Derived Values (calculate yourself,ask user if need)
 
 These 8 values are derived by analyzing the codebase (stored in config.json, not CLI flags):
 
@@ -33,6 +33,9 @@ These 8 values are derived by analyzing the codebase (stored in config.json, not
 | `projectPath` | Use current working directory | - |
 | `appConfig` | Fixed path | Always `.nocalhost/app.yaml` |
 | `deployConfig` | Fixed path | Always `.nocalhost/config.yaml` |
+
+
+### Auto-Derived then ask user to check the script
 | `startupScript` | Generate from Dockerfile ENTRYPOINT + server code | See Rule 1 below |
 | `buildScript` | Generate from Dockerfile build command | See Rule 2 below |
 

@@ -515,7 +515,7 @@ func runStop() {
 }
 
 func handleLogs(fs *flag.FlagSet, args []string) {
-	tail := fs.Bool("f", true, "Follow logs")
+	tail := fs.Bool("f", false, "Follow logs")
 	fs.Parse(args)
 	runLogs(*tail)
 }
