@@ -26,8 +26,10 @@ if (-not (Test-Path "go.mod")) {
 }
 
 # Run tests with coverage
+# go test writes warnings to stderr for packages with no test files; use Continue to avoid NativeCommandError
+$ErrorActionPreference = "Continue"
 Write-Host "Running tests..." -ForegroundColor Yellow
-$testOutput = go test -coverprofile=coverage.out ./... 2>&1
+$testOutput = go test '-coverprofile=coverage.out' './...' 2>&1
 $testExitCode = $LASTEXITCODE
 
 # Save output to file for debugging
@@ -57,7 +59,7 @@ if (-not (Test-Path "coverage.out")) {
 
 # Calculate overall coverage
 Write-Host "📊 Analyzing coverage..." -ForegroundColor Cyan
-$coverageOutput = go tool cover -func=coverage.out | Select-String "total:"
+$coverageOutput = go tool cover '-func=coverage.out' | Select-String "total:"
 if ($coverageOutput) {
     $totalCoverage = [regex]::Match($coverageOutput.ToString(), '(\d+\.?\d*)%').Groups[1].Value
     $totalCoverage = [double]$totalCoverage
@@ -106,7 +108,7 @@ try {
             foreach ($file in $changedFiles) {
                 if (Test-Path $file) {
                     # Get coverage for this file
-                    $fileCoverageLines = go tool cover -func=coverage.out | Select-String "^$file:"
+                    $fileCoverageLines = go tool cover '-func=coverage.out' | Select-String "/${file}:"
 
                     if ($fileCoverageLines) {
                         # Calculate average coverage for the file
@@ -162,7 +164,7 @@ Write-Host ""
 
 # Generate coverage report
 Write-Host "📄 Coverage report:" -ForegroundColor Cyan
-go tool cover -func=coverage.out | Select-Object -Last 20 | ForEach-Object { Write-Host $_ }
+go tool cover '-func=coverage.out' | Select-Object -Last 20 | ForEach-Object { Write-Host $_ }
 
 Write-Host ""
 Write-Host "✅ All coverage checks passed!" -ForegroundColor Green

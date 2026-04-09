@@ -40,6 +40,7 @@ Write-Host ""
 
 # Run gosec
 Write-Host "Scanning for security vulnerabilities..." -ForegroundColor Yellow
+$ErrorActionPreference = "Continue"  # gosec writes status to stderr; prevent NativeCommandError
 $gosecOutput = & gosec @ConfigArg -fmt=text ./... 2>&1
 $gosecExitCode = $LASTEXITCODE
 
