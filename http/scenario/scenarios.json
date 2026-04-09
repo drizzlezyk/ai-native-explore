@@ -1,0 +1,118 @@
+{
+  "base_url": "http://localhost:8092",
+  "scenarios": [
+    {
+      "name": "pod_history_basic",
+      "description": "Basic pod history read: verify data shape and pagination",
+      "steps": [
+        {
+          "name": "get_history_default",
+          "method": "GET",
+          "url": "/web/v1/cloud/pod/history",
+          "body": null,
+          "extract": {
+            "variable": "FIRST_POD_ID",
+            "jq_path": ".data.data[0].id"
+          },
+          "check_script": "checks/check_pod_history_ok.sh"
+        },
+        {
+          "name": "get_history_page_size_5",
+          "method": "GET",
+          "url": "/web/v1/cloud/pod/history?page_size=5",
+          "body": null,
+          "extract": null,
+          "check_script": "checks/check_page_size_5.sh"
+        }
+      ],
+      "final_verify_script": "scenarios/pod_history_basic_final.sh",
+      "cleanup_script": "scenarios/pod_history_basic_cleanup.sh"
+    },
+    {
+      "name": "cloud_lifecycle",
+      "description": "Full cloud pod lifecycle: list → subscribe → wait(ws) → get pod info → release → wait closed(ws)",
+      "steps": [
+        {
+          "name": "list_cloud_configs",
+          "method": "GET",
+          "url": "/web/v1/cloud",
+          "body": null,
+          "extract": {
+            "variable": "CLOUD_ID",
+            "jq_path": ".data[0].id"
+          },
+          "check_script": "checks/check_cloud_list_ok.sh"
+        },
+        {
+          "name": "subscribe_cloud",
+          "method": "POST",
+          "url": "/web/v1/cloud/subscribe",
+          "body": "{\"cloud_id\":\"$CLOUD_ID\",\"image\":\"python3.9-ms2.7.1-cann8.3.RC1\",\"cards_num\":1}",
+          "extract": null,
+          "check_script": "checks/check_subscribe_ok.sh"
+        },
+        {
+          "name": "wait_pod_ready",
+          "method": "WS",
+          "url": "/web/v1/cloud/$CLOUD_ID",
+          "body": null,
+          "extract": {
+            "variable": "POD_ID",
+            "jq_path": ".data.id"
+          },
+          "check_script": "checks/check_pod_ready.sh"
+        },
+        {
+          "name": "get_pod_info",
+          "method": "GET",
+          "url": "/web/v1/cloud/pod/$CLOUD_ID",
+          "body": null,
+          "extract": null,
+          "check_script": "checks/check_pod_info_ok.sh"
+        },
+        {
+          "name": "release_pod",
+          "method": "DELETE",
+          "url": "/web/v1/cloud/pod/$POD_ID",
+          "body": null,
+          "extract": null,
+          "check_script": "checks/check_release_ok.sh"
+        },
+        {
+          "name": "wait_pod_closed",
+          "method": "WS",
+          "url": "/web/v1/ws/cloud/pod/$POD_ID",
+          "body": null,
+          "extract": null,
+          "check_script": "checks/check_pod_closed.sh"
+        }
+      ],
+      "final_verify_script": "scenarios/cloud_lifecycle_final.sh",
+      "cleanup_script": "scenarios/cloud_lifecycle_cleanup.sh"
+    },
+    {
+      "name": "pod_history_filters",
+      "description": "Test filter parameters for pod history",
+      "steps": [
+        {
+          "name": "filter_by_cards_num",
+          "method": "GET",
+          "url": "/web/v1/cloud/pod/history?cards_num=1",
+          "body": null,
+          "extract": null,
+          "check_script": "checks/check_pod_history_ok.sh"
+        },
+        {
+          "name": "filter_by_image",
+          "method": "GET",
+          "url": "/web/v1/cloud/pod/history?image=python3.9-ms2.7.1-cann8.3.RC1",
+          "body": null,
+          "extract": null,
+          "check_script": "checks/check_image_filter.sh"
+        }
+      ],
+      "final_verify_script": null,
+      "cleanup_script": null
+    }
+  ]
+}
