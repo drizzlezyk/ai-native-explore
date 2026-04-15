@@ -47,7 +47,7 @@ go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/
 This command installs the application (if needed) and starts dev mode in **duplicate mode**. It captures the pod name and saves it to a local `.state.json` file.
 
 ```bash
-go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go up
+go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl up
 ```
 
 ### Step 2: First-Time Setup (Sync, Build, Run)
@@ -79,12 +79,12 @@ go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/
 **Important**: The build command uses `-mod=vendor` which requires the vendor directory. Use `--sync-vendor` flag to include it:
 
 ```bash
-go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go rebuild --sync-vendor
+go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl rebuild --sync-vendor
 ```
 
 **Note**: For subsequent rebuilds after the first vendor sync, you can omit `--sync-vendor` for faster sync:
 ```bash
-go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl/main.go rebuild
+go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl rebuild
 ```
 
 ### Step 4: Monitor Logs
