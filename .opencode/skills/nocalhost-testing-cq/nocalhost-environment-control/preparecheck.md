@@ -8,22 +8,22 @@ You MUST collect ALL of the following parameters. Missing any required field wil
 
 ### Required Parameters (CLI Flags - Ask User for Each)
 
-These 4 parameters MUST be provided as CLI flags to `prepare`:
+These 2 parameters MUST be provided as CLI flags to `prepare`:
 
 | JSON Field (camelCase) | CLI Flag (kebab-case) | Description | Example | Status |
 |------------------------|----------------------|-------------|---------|--------|
 | `developerName` | `--developer-name` | Your developer identifier | `john-doe` | ☐ |
 | `kubeconfig` | `--kubeconfig` | Full path to kubeconfig file | `~/.kube/xihe-test_kubeconfig` | ☐ |
-| `namespace` | `--namespace` | Kubernetes namespace from kubeconfig context | `xihe-test` | ☐ |
-| `origDeployName` | `--orig-deploy-name` | Original deployment name in Kubernetes | `xihe-server` | ☐ |
+| `namespace` | `--namespace` | Optional override for Kubernetes namespace from kubeconfig context | `xihe-test` | ☐ |
+| `origDeployName` | `--orig-deploy-name` | Optional override for original deployment name in Kubernetes | `xihe-server` | ☐ |
 
-**Total: 4 CLI flag parameters**
+**Total: 2 required CLI flag parameters**
 
 ---
 
 ### Auto-Derived Values (calculate yourself,ask user if need)
 
-These 8 values are derived by analyzing the codebase (stored in config.json, not CLI flags):
+These 8 values are normally derived by analyzing the codebase and stored in config.json. The current `prepare` command also exposes override flags for some of them, but the skill should keep using derivation as the default path and only override after validation:
 
 | JSON Field | How to Derive | Where to Look |
 |------------|---------------|---------------|
@@ -39,13 +39,13 @@ These 8 values are derived by analyzing the codebase (stored in config.json, not
 | `startupScript` | Generate from Dockerfile ENTRYPOINT + server code | See Rule 1 below |
 | `buildScript` | Generate from Dockerfile build command | See Rule 2 below |
 
-**Total: 8 auto-derived values**
+**Total: 8 derived values**
 
 ---
 
 ## Parameter Count Verification
 
-- **4 CLI flags** + **8 auto-derived** = **12 total** (matches config.json)
+- **2 required CLI flags** + **2 optional overrides** + **8 auto-derived** = **12 total** (matches config.json)
 
 ---
 
@@ -187,8 +187,8 @@ ls ~/.kube/*kubeconfig*
 ### CLI Flags (4 - MUST ask user)
 - [ ] `--developer-name` provided
 - [ ] `--kubeconfig` provided  
-- [ ] `--namespace` provided
-- [ ] `--orig-deploy-name` provided
+- [ ] `--namespace` derived or intentionally overridden after validation
+- [ ] `--orig-deploy-name` derived or intentionally overridden after validation
 
 ### Auto-Derived Values (8 - calculate yourself, DO NOT ask user)
 

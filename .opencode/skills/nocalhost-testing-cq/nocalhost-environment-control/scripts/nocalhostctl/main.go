@@ -65,7 +65,7 @@ func printHelp() {
 	fmt.Println("Usage: nocalhostctl <command> [args]")
 	fmt.Println("")
 	fmt.Println("Commands:")
-	fmt.Println("  prepare         Save configuration (app-name, kubeconfig)")
+	fmt.Println("  prepare         Save configuration (developer-name, kubeconfig, derived overrides if needed)")
 	fmt.Println("  up              Install app and start dev mode")
 	fmt.Println("  down            End dev mode and uninstall")
 	fmt.Println("  sync            Sync files to pod")
@@ -79,7 +79,7 @@ func printHelp() {
 	fmt.Println("  status          Show current state and next action")
 	fmt.Println("")
 	fmt.Println("Examples:")
-	fmt.Println("  nocalhostctl prepare --app-name=xxx --kubeconfig=~/.kube/config")
+	fmt.Println("  nocalhostctl prepare --developer-name=alice --kubeconfig=~/.kube/config")
 	fmt.Println("  nocalhostctl status")
 	fmt.Println("  nocalhostctl rebuild --sync-vendor")
 }

@@ -1,131 +1,67 @@
 ---
 name: nocalhost-testing-workflow
-description: Main orchestrator for complete nocalhost testing workflow
+description: Use when working on nocalhost-based API testing, including test-case generation, test execution, Kubernetes dev-environment setup, or `oneclickstart` requests
 ---
 
 # Nocalhost Testing Workflow
 
-This skill orchestrates the complete nocalhost testing workflow by coordinating test management, environment control, and test execution.
+This skill is the entry router for the nocalhost testing package.
 
-## Workflow
+It must classify the request, route to the correct sub-skill, and block eager environment startup until readiness is explicitly proven.
+
+## Routing Rules
+
+Route by user intent instead of forcing a fixed sequence.
+
+- Generate or refine YAML test cases: use `nocalhost-test-management`
+- Run existing YAML test cases and inspect reports: use `nocalhost-test-execution`
+- Prepare, validate, start, rebuild, forward, or troubleshoot the nocalhost environment: use `nocalhost-environment-control`
+- Full end-to-end workflow: start with `nocalhost-environment-control` readiness, then continue to test generation or execution as needed
+
+## Hard Readiness Gate
+
+Before any `nocalhost` startup action, the environment skill must prove readiness.
+
+Readiness is not assumed. Readiness is not inferred from intent. Readiness is not bypassed by `oneclickstart`.
+
+Do not run any of these startup commands while readiness is `unknown` or `not-ready`:
+- `up`
+- `oneclickstart`
+- `rebuild`
+- `forward`
+- `run`
+
+When readiness has not been proven, stop and collect or verify the missing information first. `prepare` is allowed only after the required inputs are known, and startup remains blocked until the post-prepare checks pass.
+
+## Required Readiness Evidence
+
+The environment skill should confirm all of the following before startup:
+- required user-owned inputs are present
+- repo-derived values are resolved from the current codebase
+- generated config and helper scripts exist and are plausible after `prepare`
+- `preparecheck.md` passes
+- the user confirms any uncertain derived values before startup continues
+
+## Minimal Workflow
 
 ```
-1. nocalhost-environment-control: initialize (setup testing environment via subagent)
-2. nocalhost-test-management: generate (create test case templates)
-3. nocalhost-test-execution: execute (run tests and generate reports)
-4. nocalhost-test-management: refine (improve test cases based on results)
+1. Classify the request.
+2. Route to the correct nocalhost skill.
+3. If environment actions are needed, require readiness evidence first.
+4. Only after readiness is proven, allow startup or execution steps.
 ```
 
-## Usage
+## Examples
 
-Invoke this skill when you want to run the complete end-to-end testing workflow from test generation through execution and refinement.
+- "Generate test cases for `controller/cloud.go` `GetHistory`" -> `nocalhost-test-management`
+- "Run the cloud nocalhost tests against localhost:8092" -> `nocalhost-test-execution`
+- "Prepare and start the nocalhost debug environment" -> `nocalhost-environment-control`
+- "Do the full nocalhost testing flow" -> readiness first, then route to generation or execution
 
-Each step can also be invoked independently:
-- `nocalhost-test-management` - Generate or refine test cases
-- `nocalhost-environment-control` - Manage nocalhost environment
-- `nocalhost-test-execution` - Execute tests and generate reports
+## What This Skill Must Not Do
 
-## Example Complete Workflow
-
-1. **Collect required variables**
-   
-   Follow the detailed rules in `preparecheck.md` to prepare enviroment
-
-   **Run prepare with --help to see all options:**
-   ```bash
-   go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl prepare --help
-   ```
-
-   **IMPORTANT**: 
-   - Verify ALL required fields are collected before proceeding
-   - Verify generated scripts match the Dockerfile and server code
-   - Missing any required field will cause the prepare command to fail
-
-   Then dispatch a subagent to check the prepare is ok:
-
-   ```javascript
-   task({
-     description: "check nocalhost testing environment is ok ",
-     prompt: "check nocalhost .config.json according to .opencode/skills/nocalhost-testing/nocalhost-environment-control/preparecheck.md. Also verify startup.sh and build.sh are correctly generated.",
-     subagent_type: "general"
-   })
-   ```
-
-   **Then ask user to check the prepare is ok**
-
-
-2. **Initialize environment**
-   First prepare the environment with the collected variables:
-
-   ```bash
-   go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl prepare \
-     --developer-name="$DEVELOPER_NAME" \
-     --kubeconfig="$KUBECONFIG_PATH" \
-     --namespace="$NAMESPACE" \
-     --orig-deploy-name="$ORIG_DEPLOY_NAME"
-   ```
-
-   **Auto-derived parameters** (do NOT pass as flags - derive from codebase):
-   - `binary-name`: from Dockerfile `go build -o <binary>`
-   - `project-path`: current working directory or specified
-   - `remote-port`: from Dockerfile EXPOSE or server code
-   - `heartbeat-url`: from server code `/heartbeat` endpoint
-
-   ```bash
-   go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl status
-
-   go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-environment-control/scripts/nocalhostctl oneclickstart
-   ```
-   Then dispatch a subagent to set up the testing environment using the task tool:
-
-   ```javascript
-   task({
-     description: "Initialize nocalhost testing environment",
-     prompt: "Use the nocalhost-environment-control skill to set up the testing environment. Run oneclickstart after prepare.",
-     subagent_type: "general"
-   })
-   ```
- 
-3. Generate test cases
-Use the nocalhost-test-management skill to create test case templates.
-
-4. Execute tests
-Run the test runner:
-
-``` bash
-go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
-  --url=http://localhost:8092 \
-  --group=cloud \
-  --user=$DEVELOPER_NAME
-
-
-go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go --help  
-```
-
-5. Refine test cases
-Review the test report and update test cases as needed (manual process).
-
-## Workflow Notes
-
-- The workflow is iterative: after refining test cases, re-run steps 3-4
-- Each step can be invoked independently for focused work
-- **Always use skills for server control** - never run nocalhostctl scripts directly
-- Reports persist in `tests/nocalhost-test-report/` for historical analysis
-
-## Subagent Invocation Pattern
-
-Step 2 uses the `task` tool to dispatch a subagent for environment control. This pattern ensures:
-
-1. **Isolation**: Environment setup runs in a separate agent context
-2. **Skill loading**: The subagent automatically loads the nocalhost-environment-control skill
-3. **Error handling**: Subagent manages its own error recovery and logging
-4. **Consistency**: Follows the same pattern used across other workflow skills
-
-Example subagent invocation:
-```javascript
-task({
-  description: "Initialize nocalhost testing environment",
-  prompt: "Use the nocalhost-environment-control skill to set up the testing environment. This includes: up, rebuild, and forward operations.",
-  subagent_type: "general"
-})
-```
+This skill must not:
+- embed a full startup recipe
+- tell the agent to run `oneclickstart` right after `prepare`
+- assume the environment is ready because the user asked for nocalhost testing
+- skip readiness collection just to move faster

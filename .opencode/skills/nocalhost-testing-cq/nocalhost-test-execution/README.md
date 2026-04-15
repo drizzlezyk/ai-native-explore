@@ -20,7 +20,7 @@ Execute test cases against a running ${DEPLOYMENT_NAME} instance and generate de
 ## Quick Start
 
 ```bash
-go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go --help
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go --help
 ```
 
 ## Available Flags
@@ -35,12 +35,12 @@ go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-test-execution/scrip
 
 ```bash
 # Run cloud tests
-go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
   --url=http://localhost:8092 \
   --group=cloud
 
 # Run user tests with specific username
-go run -tags debug ./.ai/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
+go run -tags debug ./.opencode/skills/nocalhost-testing/nocalhost-test-execution/scripts/runner.go \
   --group=user \
   --user=testuser
 ```
@@ -106,12 +106,7 @@ Report includes:
 
 ## Integration with Workflow
 
-This is **Step 3** of the 4-step nocalhost testing workflow:
-
-1. nocalhost-test-management: generate test cases
-2. nocalhost-environment-control: start server
-3. **nocalhost-test-execution: run tests** ← You are here
-4. Review reports and refine tests
+This README documents the execution branch of the routed nocalhost testing package. Use it after the environment is already prepared and reachable.
 
 ## Troubleshooting
 

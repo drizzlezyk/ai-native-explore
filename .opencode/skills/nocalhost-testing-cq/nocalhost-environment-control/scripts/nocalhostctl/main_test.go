@@ -111,13 +111,13 @@ func setupTestEnv(t *testing.T) func() {
 	}
 
 	// Set test environment variables
-	os.Setenv("TEST_APP_NAME", "test-xihe-user")
+	os.Setenv("TEST_DEVELOPER_NAME", "test-xihe-user")
 	os.Setenv("TEST_KUBECONFIG", os.Getenv("KUBECONFIG"))
 	os.Setenv("TEST_NAMESPACE", "xihe-test-v2")
 
 	cleanup := func() {
 		os.RemoveAll(tempDir)
-		os.Unsetenv("TEST_APP_NAME")
+		os.Unsetenv("TEST_DEVELOPER_NAME")
 		os.Unsetenv("TEST_KUBECONFIG")
 		os.Unsetenv("TEST_NAMESPACE")
 	}
@@ -126,10 +126,14 @@ func setupTestEnv(t *testing.T) func() {
 }
 
 func createTempConfig(t *testing.T) *Config {
+	if err := os.MkdirAll(".nocalhost", 0755); err != nil {
+		t.Fatalf("Failed to create .nocalhost dir: %v", err)
+	}
+
 	config := &Config{
-		AppName:    os.Getenv("TEST_APP_NAME"),
-		KubeConfig: os.Getenv("TEST_KUBECONFIG"),
-		Namespace:  os.Getenv("TEST_NAMESPACE"),
+		DeveloperName: os.Getenv("TEST_DEVELOPER_NAME"),
+		KubeConfig:    os.Getenv("TEST_KUBECONFIG"),
+		Namespace:     os.Getenv("TEST_NAMESPACE"),
 	}
 
 	data, err := json.MarshalIndent(config, "", "  ")
@@ -146,6 +150,10 @@ func createTempConfig(t *testing.T) *Config {
 }
 
 func createTempState(t *testing.T) *RuntimeState {
+	if err := os.MkdirAll(".nocalhost", 0755); err != nil {
+		t.Fatalf("Failed to create .nocalhost dir: %v", err)
+	}
+
 	state := &RuntimeState{
 		PodName:     "test-pod-name",
 		DeployName:  "test-deploy-name",
@@ -166,8 +174,8 @@ func createTempState(t *testing.T) *RuntimeState {
 }
 
 func assertConfigEqual(t *testing.T, got, want *Config) {
-	if got.AppName != want.AppName {
-		t.Errorf("AppName: got %v, want %v", got.AppName, want.AppName)
+	if got.DeveloperName != want.DeveloperName {
+		t.Errorf("DeveloperName: got %v, want %v", got.DeveloperName, want.DeveloperName)
 	}
 	if got.KubeConfig != want.KubeConfig {
 		t.Errorf("KubeConfig: got %v, want %v", got.KubeConfig, want.KubeConfig)
@@ -305,8 +313,8 @@ func TestCommandHandler_Up_InitialSetup(t *testing.T) {
 			t.Errorf("Config file not created: %v", err)
 		}
 
-		if config.AppName != xiheUser {
-			t.Errorf("AppName: got %v, want %v", config.AppName, xiheUser)
+		if config.DeveloperName != xiheUser {
+			t.Errorf("DeveloperName: got %v, want %v", config.DeveloperName, xiheUser)
 		}
 
 		// Verify pod is running

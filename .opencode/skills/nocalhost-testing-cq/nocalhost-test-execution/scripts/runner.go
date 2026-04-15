@@ -198,6 +198,16 @@ func executeTestCase(tc TestCase) (bool, int, string, string, error) {
 	return passed, resp.StatusCode, paramsStr, bodyStr, nil
 }
 
+func needsFallbackUser(cases []TestCase) bool {
+	for _, tc := range cases {
+		if tc.AuthRequired && tc.AuthUsername == "" {
+			return true
+		}
+	}
+
+	return false
+}
+
 func main() {
 	flag.StringVar(&baseURL, "url", "http://localhost:8092", "Base URL of the server")
 	flag.StringVar(&group, "group", "cloud", "Test group to run (cloud, user, etc.)")
@@ -210,14 +220,14 @@ func main() {
 
 	flag.Parse()
 
-	if testUsername == "" {
-		fmt.Println("Error: --user flag or DEVELOPER_NAME env var is required")
-		os.Exit(1)
-	}
-
 	cases, err := loadTestCases(group)
 	if err != nil {
 		fmt.Printf("Error loading tests: %v\n", err)
+		os.Exit(1)
+	}
+
+	if needsFallbackUser(extractTestCases(cases)) && testUsername == "" {
+		fmt.Println("Error: --user flag or DEVELOPER_NAME env var is required for auth-required test cases without auth_username")
 		os.Exit(1)
 	}
 

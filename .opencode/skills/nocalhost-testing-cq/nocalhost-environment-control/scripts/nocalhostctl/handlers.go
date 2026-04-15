@@ -649,22 +649,34 @@ func runStatus() {
 
 	state, err := loadState()
 	if err != nil {
-		printStatus(config.OrigDeployName, "uninstalled", "", "oneclickstart")
+		stateLabel, nextHint := resolveStatusSnapshot(true, false, false, false)
+		printStatus(config.OrigDeployName, stateLabel, "", nextHint)
 		return
 	}
 
 	podRunning := checkPodRunning(state.PodName, config.Namespace, config.KubeConfig)
 	if !podRunning {
-		printStatus(config.OrigDeployName, "uninstalled", "", "oneclickstart")
+		stateLabel, nextHint := resolveStatusSnapshot(true, true, false, false)
+		printStatus(config.OrigDeployName, stateLabel, state.PodName, nextHint)
 		return
 	}
 
 	serverRunning := checkServerHeartbeat()
-	if serverRunning {
-		printStatus(config.OrigDeployName, "server_running", state.PodName, "rebuild")
-	} else {
-		printStatus(config.OrigDeployName, "pod_running", state.PodName, "rebuild --sync-vendor")
+	stateLabel, nextHint := resolveStatusSnapshot(true, true, true, serverRunning)
+	printStatus(config.OrigDeployName, stateLabel, state.PodName, nextHint)
+}
+
+func resolveStatusSnapshot(hasConfig, hasState, podRunning, serverRunning bool) (string, string) {
+	if !hasConfig {
+		return "not_prepared", "prepare"
 	}
+	if !hasState || !podRunning {
+		return "uninstalled", "oneclickstart"
+	}
+	if serverRunning {
+		return "server_running", "rebuild"
+	}
+	return "pod_running", "rebuild --sync-vendor"
 }
 
 func checkPodRunning(podName, namespace, kubeconfig string) bool {

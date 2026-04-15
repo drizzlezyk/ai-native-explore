@@ -7,7 +7,7 @@ description: Analyzes Go controller code and generates YAML test cases for API t
 
 This skill analyzes Go controller source files to extract API endpoint information and generates YAML test cases.
 
-**info you should know** `.open/skills/nocalhost-testing/nocalhost-test-management/implement.md`
+**Info you should know:** `.opencode/skills/nocalhost-testing/nocalhost-test-management/implement.md`
 
 ## Usage
 
@@ -47,7 +47,7 @@ pl, visitor, ok := ctl.checkUserApiTokenV2(ctx, true)
 
 Generate YAML to `tests/nocalhost-test/<group>/<endpoint>.yaml`:
 
-**Important:** When `auth_required: true`, always set `debug_if_no_cookie: true` by default. This will prompt for username and automatically bypass auth.
+**Important:** When `auth_required: true`, align the YAML with the debug-server execution flow. The execution skill provides the username via `--user` or `DEVELOPER_NAME`, so do not add cookie-specific compatibility fields unless the user explicitly asks for a legacy format.
 
 ```yaml
 - name: "<description>"
@@ -55,7 +55,6 @@ Generate YAML to `tests/nocalhost-test/<group>/<endpoint>.yaml`:
   method: "GET"
   expected_status: 200
   auth_required: true
-  debug_if_no_cookie: true
   query_params:
     - key: "param"
       value: "test-value"

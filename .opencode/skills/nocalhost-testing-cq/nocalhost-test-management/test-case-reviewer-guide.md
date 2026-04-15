@@ -21,7 +21,7 @@ Task tool (general-purpose):
     |----------|------------------|
     | URL & Method | Path matches router registration, method (GET/POST/etc.) is correct |
     | Parameters | All Query/Body parameters mentioned in Go code are present in YAML |
-    | Auth Logic | `auth_required` matches `checkUserApiTokenV2` or similar calls. If true, `debug_if_no_cookie: true` is present |
+| Auth Logic | `auth_required` matches `checkUserApiTokenV2` or similar calls, and the YAML stays compatible with the debug-server execution flow |
     | Status Codes | Expected status codes (200, 401, etc.) match controller logic for success and error cases |
     | Grouping | File path follows `tests/nocalhost-test/<group>/<endpoint>.yaml` pattern |
 
