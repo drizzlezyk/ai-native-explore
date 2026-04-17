@@ -53,7 +53,7 @@ echo "3/3: Secret Detection (Gitleaks)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-if bash "$SCRIPT_DIR/run_gitleaks.sh" staged; then
+if bash "$SCRIPT_DIR/run_gitleaks.sh"; then
     echo ""
     echo "✅ Secret detection passed"
 else

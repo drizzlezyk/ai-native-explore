@@ -2,7 +2,7 @@
 # Run unit tests with coverage validation
 # Checks: 10% baseline coverage, 80% incremental coverage for changed code
 
-set -e
+set -euo pipefail
 
 echo "🧪 Running unit tests with coverage validation..."
 echo ""
@@ -24,8 +24,8 @@ if ! command -v $PYTHON_CMD &> /dev/null; then
     exit 1
 fi
 
-# Check if pytest is installed
-if ! command -v pytest &> /dev/null; then
+# Check if pytest is installed for the selected Python interpreter
+if ! $PYTHON_CMD -m pytest --version > /dev/null 2>&1; then
     echo "❌ pytest is not installed"
     echo ""
     echo "Install with:"
@@ -50,7 +50,10 @@ fi
 
 # Run tests with coverage
 echo "Running tests..."
-if ! pytest --cov=. --cov-report=term --cov-report=xml --cov-report=html -v 2>&1 | tee test_output.txt; then
+# Remove stale coverage artifacts to avoid reading old successful results
+rm -f coverage.xml .coverage
+
+if ! $PYTHON_CMD -m pytest -p pytest_cov --cov=. --cov-report=term --cov-report=xml --cov-report=html -v 2>&1 | tee test_output.txt; then
     echo ""
     echo "❌ Tests failed!"
     echo ""
@@ -62,6 +65,15 @@ if ! pytest --cov=. --cov-report=term --cov-report=xml --cov-report=html -v 2>&1
 fi
 
 echo ""
+
+# Ensure test run actually executed tests
+if grep -E -q "collected 0 items|no tests ran" test_output.txt; then
+    echo "❌ No tests were collected."
+    echo ""
+    echo "Add tests under tests/ or files matching test_*.py"
+    rm -f test_output.txt
+    exit 1
+fi
 
 # Check if coverage file was generated
 if [ ! -f coverage.xml ]; then
@@ -92,8 +104,8 @@ fi
 
 echo "Overall coverage: ${total_coverage}%"
 
-# Check baseline coverage
-if (( $(echo "$total_coverage < $BASELINE_COVERAGE" | bc -l) )); then
+# Check baseline coverage without external bc dependency
+if $PYTHON_CMD -c "import sys; sys.exit(0 if float('$total_coverage') < float('$BASELINE_COVERAGE') else 1)"; then
     echo "❌ Coverage ${total_coverage}% is below baseline ${BASELINE_COVERAGE}%"
     echo ""
     echo "To improve coverage:"
@@ -155,7 +167,7 @@ except Exception as e:
                 if [ -z "$file_coverage" ] || [ "$file_coverage" = "0" ] || [ "$file_coverage" = "0.00" ]; then
                     echo "  ⚠️  $file: no coverage data"
                     failed_files+=("$file (no coverage)")
-                elif (( $(echo "$file_coverage < $INCREMENTAL_COVERAGE" | bc -l) )); then
+                elif $PYTHON_CMD -c "import sys; sys.exit(0 if float('$file_coverage') < float('$INCREMENTAL_COVERAGE') else 1)"; then
                     echo "  ❌ $file: ${file_coverage}% (< ${INCREMENTAL_COVERAGE}%)"
                     failed_files+=("$file (${file_coverage}%)")
                 else

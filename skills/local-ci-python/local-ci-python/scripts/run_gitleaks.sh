@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run gitleaks to detect secrets and sensitive information
 
-set -e
+set -euo pipefail
 
 echo "🔐 Scanning for secrets and sensitive information..."
 echo ""
@@ -19,23 +19,9 @@ fi
 
 # Check if this is a git repository
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
-    echo "⚠️  Not a git repository"
-    echo "Gitleaks works best with git repositories"
-    echo ""
-    echo "Scanning current directory without git history..."
-    if gitleaks detect --no-git --verbose 2>&1 | tee gitleaks_output.txt; then
-        echo ""
-        echo "✅ No secrets detected!"
-        rm -f gitleaks_output.txt
-        exit 0
-    else
-        EXIT_CODE=$?
-        echo ""
-        echo "❌ Secrets detected!"
-        echo ""
-        echo "See gitleaks_output.txt for details"
-        exit $EXIT_CODE
-    fi
+    echo "❌ Not a git repository"
+    echo "This script requires git history scanning for CI parity."
+    exit 1
 fi
 
 # Check for custom gitleaks configuration
@@ -49,8 +35,28 @@ fi
 
 echo ""
 
+# Advisory-only uncommitted scan: report risk without affecting exit code.
+run_uncommitted_advisory() {
+    echo ""
+    echo "Advisory scan: uncommitted changes"
+    echo "⚠️  Findings in this section are reminders for developers and do not change script exit status"
+    echo ""
+
+    if gitleaks detect $CONFIG_ARG --no-git --verbose 2>&1 | tee gitleaks_uncommitted_output.txt; then
+        echo ""
+        echo "✅ No secrets detected in uncommitted changes (advisory)"
+    else
+        echo ""
+        echo "⚠️  Uncommitted risk detected (advisory only)."
+        echo "Please fix before commit; do not add uncommitted findings to .gitleaksignore."
+    fi
+
+    rm -f gitleaks_uncommitted_output.txt
+}
+
 # Determine scan mode
-SCAN_MODE="${1:-staged}"
+# Default to committed changes so local checks align with CI-impacting commits.
+SCAN_MODE="${1:-committed}"
 
 case "$SCAN_MODE" in
     staged)
@@ -68,27 +74,82 @@ case "$SCAN_MODE" in
         ;;
 
     uncommitted)
-        echo "Scanning uncommitted changes (working directory)..."
-        echo "This checks all modified files, staged or not"
+        echo "Scanning uncommitted changes (advisory only)..."
+        echo "⚠️  This mode only reports risk and will not update .gitleaksignore"
         echo ""
         if gitleaks detect $CONFIG_ARG --no-git --verbose 2>&1 | tee gitleaks_output.txt; then
             echo ""
             echo "✅ No secrets detected in uncommitted changes!"
+        else
+            echo ""
+            echo "⚠️  Uncommitted risk detected (advisory only)."
+            echo "Please fix before commit; do not add uncommitted findings to .gitleaksignore."
+        fi
+        rm -f gitleaks_output.txt
+        exit 0
+        ;;
+
+    committed)
+        echo "Scanning committed changes only (upstream..HEAD)..."
+        echo ""
+        echo "Syncing git refs before committed scan (fetch --all --prune --tags)..."
+        if git fetch --all --prune --tags > /dev/null 2>&1; then
+            echo "✅ Git refs synced"
+        else
+            echo "⚠️  git fetch failed; continuing with current local refs"
+        fi
+        echo ""
+
+        UPSTREAM_REF="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+        if [ -n "$UPSTREAM_REF" ]; then
+            LOG_RANGE="${UPSTREAM_REF}..HEAD"
+            echo "Using upstream range: $LOG_RANGE"
+        elif git show-ref --verify --quiet refs/remotes/origin/main; then
+            LOG_RANGE="origin/main..HEAD"
+            echo "Using fallback range: $LOG_RANGE"
+        elif git rev-parse HEAD~1 > /dev/null 2>&1; then
+            LOG_RANGE="HEAD~1..HEAD"
+            echo "Using fallback range: $LOG_RANGE"
+        else
+            LOG_RANGE="HEAD"
+            echo "Using single-commit range: $LOG_RANGE"
+        fi
+        echo ""
+
+        COMMIT_COUNT="$(git rev-list --count "$LOG_RANGE" 2>/dev/null || echo 0)"
+        if [ "$COMMIT_COUNT" = "0" ]; then
+            echo "ℹ️  No new committed changes found in range ($LOG_RANGE)"
+            echo "✅ Commit-based gitleaks scan skipped"
+            exit 0
+        fi
+
+        if gitleaks detect $CONFIG_ARG --log-opts="$LOG_RANGE" --verbose 2>&1 | tee gitleaks_output.txt; then
+            echo ""
+            echo "✅ No secrets detected in committed changes!"
             rm -f gitleaks_output.txt
+            run_uncommitted_advisory
             exit 0
         else
             EXIT_CODE=$?
         fi
         ;;
 
-    history)
-        echo "Scanning entire git history..."
+    history|all-branches)
+        echo "Scanning entire git history across all branches..."
         echo "⚠️  This may take a while for large repositories"
         echo ""
-        if gitleaks detect $CONFIG_ARG --verbose 2>&1 | tee gitleaks_output.txt; then
+        echo "Syncing git refs before history scan (fetch --all --prune --tags)..."
+        if git fetch --all --prune --tags > /dev/null 2>&1; then
+            echo "✅ Git refs synced"
+        else
+            echo "⚠️  git fetch failed; continuing with current local refs"
+        fi
+        echo ""
+        if gitleaks detect $CONFIG_ARG --log-opts="--all" --verbose 2>&1 | tee gitleaks_output.txt; then
             echo ""
-            echo "✅ No secrets detected in git history!"
+            echo "✅ No secrets detected in git history (all branches)!"
             rm -f gitleaks_output.txt
+            run_uncommitted_advisory
             exit 0
         else
             EXIT_CODE=$?
@@ -98,10 +159,12 @@ case "$SCAN_MODE" in
     *)
         echo "❌ Invalid scan mode: $SCAN_MODE"
         echo ""
-        echo "Usage: $0 [staged|uncommitted|history]"
-        echo "  staged      - Scan staged changes (default)"
-        echo "  uncommitted - Scan all uncommitted changes"
-        echo "  history     - Scan entire git history"
+        echo "Usage: $0 [committed|all-branches|history|staged|uncommitted]"
+        echo "  committed    - Scan committed changes only (upstream..HEAD, default)"
+        echo "  all-branches - Scan full git history across all branches"
+        echo "  history      - Alias of all-branches"
+        echo "  staged       - Scan staged changes only"
+        echo "  uncommitted  - Advisory-only scan, never updates ignore and never blocks"
         exit 1
         ;;
 esac
