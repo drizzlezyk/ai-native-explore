@@ -56,7 +56,7 @@ fi
 echo "Overall coverage: ${total_coverage}%"
 
 # Check baseline coverage
-if (( $(echo "$total_coverage < $BASELINE_COVERAGE" | bc -l) )); then
+if awk "BEGIN {exit !($total_coverage < $BASELINE_COVERAGE)}"; then
     echo "❌ Coverage ${total_coverage}% is below baseline ${BASELINE_COVERAGE}%"
     echo ""
     echo "To improve coverage:"
@@ -95,7 +95,7 @@ if git rev-parse --git-dir > /dev/null 2>&1; then
                 if [ -z "$file_coverage" ] || [ "$file_coverage" = "0" ]; then
                     echo "  ⚠️  $file: no coverage data"
                     failed_files+=("$file (no coverage)")
-                elif (( $(echo "$file_coverage < $INCREMENTAL_COVERAGE" | bc -l) )); then
+                elif awk "BEGIN {exit !($file_coverage < $INCREMENTAL_COVERAGE)}"; then
                     echo "  ❌ $file: ${file_coverage}% (< ${INCREMENTAL_COVERAGE}%)"
                     failed_files+=("$file (${file_coverage}%)")
                 else
