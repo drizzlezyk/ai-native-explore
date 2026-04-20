@@ -7,9 +7,24 @@ set -euo pipefail
 echo "🧪 Running unit tests with coverage validation..."
 echo ""
 
+# Always remove temporary coverage artifacts on exit to avoid accidental uploads.
+cleanup_coverage_artifacts() {
+    rm -f coverage.xml .coverage
+}
+trap cleanup_coverage_artifacts EXIT
+
 # Configuration
 BASELINE_COVERAGE=10    # Minimum overall coverage (%)
 INCREMENTAL_COVERAGE=80 # Minimum coverage for changed code (%)
+overall_summary="N/A"
+incremental_summary="NOT_RUN"
+
+print_coverage_summary() {
+    echo ""
+    echo "📌 Coverage Result:"
+    echo "  - Overall Coverage: ${overall_summary}"
+    echo "  - Incremental Coverage: ${incremental_summary}"
+}
 
 # Determine Python command
 if command -v python3 &> /dev/null; then
@@ -103,10 +118,13 @@ if [ -z "$total_coverage" ] || [ "$total_coverage" = "0" ]; then
 fi
 
 echo "Overall coverage: ${total_coverage}%"
+overall_summary="${total_coverage}%"
 
 # Check baseline coverage without external bc dependency
 if $PYTHON_CMD -c "import sys; sys.exit(0 if float('$total_coverage') < float('$BASELINE_COVERAGE') else 1)"; then
     echo "❌ Coverage ${total_coverage}% is below baseline ${BASELINE_COVERAGE}%"
+    incremental_summary="NOT_RUN (baseline failed)"
+    print_coverage_summary
     echo ""
     echo "To improve coverage:"
     echo "  1. View coverage report: open htmlcov/index.html"
@@ -128,6 +146,7 @@ if git rev-parse --git-dir > /dev/null 2>&1; then
     if [ -z "$changed_files" ]; then
         echo "ℹ️  No changed Python files found (excluding tests)"
         echo "✅ Incremental coverage check skipped"
+        incremental_summary="SKIPPED (no changed Python files)"
     else
         echo "Changed files:"
         echo "$changed_files" | sed 's/^/  - /'
@@ -179,10 +198,12 @@ except Exception as e:
         echo ""
 
         if [ ${#failed_files[@]} -gt 0 ]; then
+            incremental_summary="FAIL (${#failed_files[@]} file(s) below ${INCREMENTAL_COVERAGE}%)"
             echo "❌ Incremental coverage check failed for ${#failed_files[@]} file(s):"
             for file in "${failed_files[@]}"; do
                 echo "  - $file"
             done
+            print_coverage_summary
             echo ""
             echo "To improve incremental coverage:"
             echo "  1. View coverage: open htmlcov/index.html"
@@ -191,12 +212,15 @@ except Exception as e:
             exit 1
         fi
 
+        incremental_summary="PASS (all changed files >= ${INCREMENTAL_COVERAGE}%)"
         echo "✅ Incremental coverage check passed (all changed files >= ${INCREMENTAL_COVERAGE}%)"
     fi
 else
     echo "ℹ️  Not a git repository - skipping incremental coverage check"
+    incremental_summary="SKIPPED (not a git repository)"
 fi
 
+print_coverage_summary
 echo ""
 
 # Generate coverage summary
