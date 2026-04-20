@@ -51,7 +51,7 @@ bash .claude/skills/local-ci-go/scripts/run_all_checks.sh
 ```bash
 bash .claude/skills/local-ci-go/scripts/run_tests.sh      # Test coverage
 bash .claude/skills/local-ci-go/scripts/run_security.sh   # Gosec scan
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh   # Secret detection (default: committed)
+bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh   # Secret detection
 ```
 
 ## Individual CI Checks
@@ -129,8 +129,6 @@ See [references/security-best-practices.md](references/security-best-practices.m
 bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh
 ```
 
-Default behavior: `committed` mode runs first for CI parity, then an automatic `uncommitted` advisory scan is shown to remind developers about local risks (does not affect exit code and is not used to update ignore).
-
 **What it detects**:
 - API keys (AWS, Google, Azure, etc.)
 - Authentication tokens (GitHub, GitLab, etc.)
@@ -149,26 +147,12 @@ Default behavior: `committed` mode runs first for CI parity, then an automatic `
 
 **Scan modes**:
 ```bash
-# Scan committed changes only (default, CI-oriented)
+# Scan uncommitted changes only (fast)
 bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh
 
-# Explicit committed mode
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh committed
-
-# Scan entire git history across all branches (explicit)
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh all-branches
-
-# Alias of all-branches
+# Scan entire git history (thorough)
 bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh history
-
-# Scan staged changes only
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh staged
-
-# Scan uncommitted changes (advisory only; never updates ignore and never blocks)
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh uncommitted
 ```
-
-Note: For `committed` and `all-branches`/`history`, the script automatically runs `git fetch --all --prune --tags` before scanning to reduce local-vs-CI mismatch caused by stale refs.
 
 ## Configuration
 
@@ -228,18 +212,8 @@ paths = [
 1. Run gitleaks scan
 2. Identify the secret (file and line)
 3. Remove secret (move to env var or config file)
-4. If false positive, update `.gitleaksignore` with compatibility entries:
-   - Required format: `commit:file:rule:line`
-   - Use CI-reported fingerprint directly to avoid mismatch
-   - Only add committed/history findings; for `uncommitted` mode, only fix code and do not update ignore
-   - Get commit SHA with: `git rev-parse HEAD`
-5. If already committed: Rotate credential immediately
-6. Re-run to verify
-
-Example `.gitleaksignore` entries for one finding:
-```text
-10616a3c20cadc1f6fe3762f26850cc2f8971bd9:path/to/file.go:generic-api-key:42
-```
+4. If already committed: Rotate credential immediately
+5. Re-run to verify
 
 ## Integration with GitHub Actions
 
@@ -321,8 +295,6 @@ jobs:
 **Gitleaks false positives**:
 - Add to `.gitleaksignore`
 - Customize `.gitleaks.toml`
-- Preferred ignore line format: `commit:file:rule:line`
-- Do not add `uncommitted` findings to ignore; treat them as advisory prompts to fix code before commit
 
 ## Best Practices
 

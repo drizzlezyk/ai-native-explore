@@ -7,7 +7,7 @@ Automated security issue detection and fixing system for Go projects.
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     Main Orchestrator                        │
-│                      orchestrator.sh                          │
+│                    orchestrator.sh/.ps1                      │
 └──────────────┬────────────────────────────────┬─────────────┘
                │                                 │
                ▼                                 ▼
@@ -43,19 +43,23 @@ Automated security issue detection and fixing system for Go projects.
 
 ## Components
 
-### 1. Orchestrator (`orchestrator.sh`)
+### 1. Orchestrator (`orchestrator.sh` / `orchestrator.ps1`)
 
 Main controller that coordinates the entire workflow.
 
 **Usage:**
 ```bash
+# Bash
 bash .claude/skills/local-ci-go/scripts/security-fix/orchestrator.sh --auto-fix
+
+# PowerShell
+.\.claude\skills\local-ci-go\scripts\security-fix\orchestrator.ps1 -AutoFix
 ```
 
 **Options:**
-- `--auto-fix`: Enable automatic fixing without prompts
-- `--no-interactive`: No user input required
-- `--max-iterations N`: Maximum fix attempts (default: 3)
+- `--auto-fix` / `-AutoFix`: Enable automatic fixing without prompts
+- `--no-interactive` / `-NoInteractive`: No user input required
+- `--max-iterations N` / `-MaxIterations N`: Maximum fix attempts (default: 3)
 
 **Workflow:**
 1. Run gosec security scan
@@ -65,7 +69,7 @@ bash .claude/skills/local-ci-go/scripts/security-fix/orchestrator.sh --auto-fix
 5. Verify each fix iteration
 6. Generate final report with results
 
-### 2. Report Generator (`generate_report.sh`)
+### 2. Report Generator (`generate_report.sh` / `generate_report.ps1`)
 
 Converts gosec JSON output to human-readable markdown.
 
@@ -113,7 +117,7 @@ bash fixer_agent.sh .ci-temp/gosec-report.json fixes.md
 bash fixer_agent_claude.sh .ci-temp/gosec-report.json fixes.md
 ```
 
-### 4. Verifier Agent (`verifier_agent.sh`)
+### 4. Verifier Agent (`verifier_agent.sh` / `verifier_agent.ps1`)
 
 Validates that fixes were applied correctly by re-running gosec.
 

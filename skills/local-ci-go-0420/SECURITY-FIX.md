@@ -20,8 +20,8 @@ bash .claude/skills/local-ci-go/scripts/run_security.sh
 ```
 
 **Windows:**
-```bash
-bash .claude/skills/local-ci-go/scripts/run_security.sh
+```powershell
+.\.claude\skills\local-ci-go\scripts\run_security.ps1
 ```
 
 ### 2. Auto-Fix Issues (if found)
@@ -32,8 +32,8 @@ bash .claude/skills/local-ci-go/scripts/security-fix/orchestrator.sh --auto-fix
 ```
 
 **Windows:**
-```bash
-bash .claude/skills/local-ci-go/scripts/security-fix/orchestrator.sh --auto-fix
+```powershell
+.\.claude\skills\local-ci-go\scripts\security-fix\orchestrator.ps1 -AutoFix
 ```
 
 ### 3. Review & Commit
@@ -117,11 +117,11 @@ All reports are saved to `.ci-temp/`:
 --max-iterations N    # Maximum fix attempts (default: 3)
 ```
 
-Windows and Ubuntu both use Bash options:
-```bash
---auto-fix            # Enable auto-fix without prompting
---no-interactive      # Run without any user input
---max-iterations N    # Maximum fix attempts (default: 3)
+**PowerShell:**
+```powershell
+-AutoFix              # Enable auto-fix without prompting
+-NoInteractive        # Run without any user input
+-MaxIterations N      # Maximum fix attempts (default: 3)
 ```
 
 ### Examples

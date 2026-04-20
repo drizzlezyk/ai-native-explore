@@ -39,9 +39,9 @@ A comprehensive CI skill for Go projects that runs locally before pushing code.
 bash .claude/skills/local-ci-go/scripts/check_prerequisites.sh
 ```
 
-**Windows (Git Bash):**
-```bash
-bash .claude/skills/local-ci-go/scripts/check_prerequisites.sh
+**Windows (PowerShell):**
+```powershell
+.\.claude\skills\local-ci-go\scripts\check_prerequisites.ps1
 ```
 
 ### 2. Install Missing Tools
@@ -51,9 +51,9 @@ bash .claude/skills/local-ci-go/scripts/check_prerequisites.sh
 bash .claude/skills/local-ci-go/scripts/install_tools.sh
 ```
 
-**Windows (Git Bash):**
-```bash
-bash .claude/skills/local-ci-go/scripts/install_tools.sh
+**Windows (PowerShell):**
+```powershell
+.\.claude\skills\local-ci-go\scripts\install_tools.ps1
 ```
 
 ### 3. Run All Checks
@@ -63,9 +63,9 @@ bash .claude/skills/local-ci-go/scripts/install_tools.sh
 bash .claude/skills/local-ci-go/scripts/run_all_checks.sh
 ```
 
-**Windows (Git Bash):**
-```bash
-bash .claude/skills/local-ci-go/scripts/run_all_checks.sh
+**Windows (PowerShell):**
+```powershell
+.\.claude\skills\local-ci-go\scripts\run_all_checks.ps1
 ```
 
 ## Individual Checks
@@ -82,31 +82,23 @@ bash .claude/skills/local-ci-go/scripts/run_security.sh
 
 # Secret detection
 bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh
-
-# Explicit committed mode (default)
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh committed
-
-# Full history across all branches
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh all-branches
 ```
 
-**Windows (Git Bash):**
-```bash
+**Windows (PowerShell):**
+```powershell
 # Test coverage
-bash .claude/skills/local-ci-go/scripts/run_tests.sh
+.\.claude\skills\local-ci-go\scripts\run_tests.ps1
 
 # Security scan
-bash .claude/skills/local-ci-go/scripts/run_security.sh
+.\.claude\skills\local-ci-go\scripts\run_security.ps1
 
 # Secret detection
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh
+.\.claude\skills\local-ci-go\scripts\run_gitleaks.ps1
 
 # Secret detection with different modes
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh committed
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh all-branches
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh history
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh staged
-bash .claude/skills/local-ci-go/scripts/run_gitleaks.sh uncommitted
+.\.claude\skills\local-ci-go\scripts\run_gitleaks.ps1 -ScanMode staged
+.\.claude\skills\local-ci-go\scripts\run_gitleaks.ps1 -ScanMode uncommitted
+.\.claude\skills\local-ci-go\scripts\run_gitleaks.ps1 -ScanMode history
 ```
 
 ## Configuration
@@ -222,8 +214,8 @@ bash .claude/skills/local-ci-go/scripts/security-fix/orchestrator.sh --auto-fix
 ```
 
 **Windows:**
-```bash
-bash .claude/skills/local-ci-go/scripts/security-fix/orchestrator.sh --auto-fix
+```powershell
+.\.claude\skills\local-ci-go\scripts\security-fix\orchestrator.ps1 -AutoFix
 ```
 
 See [SECURITY-FIX.md](SECURITY-FIX.md) for complete documentation.
@@ -254,7 +246,7 @@ go test ./...
 ### False Positives
 
 **Gosec**: Add `#nosec` comment or configure `.gosec.json`
-**Gitleaks**: Add to `.gitleaksignore` or configure `.gitleaks.toml` (preferred ignore format: `commit:file:rule:line`)
+**Gitleaks**: Add to `.gitleaksignore` or configure `.gitleaks.toml`
 
 ## Documentation
 
