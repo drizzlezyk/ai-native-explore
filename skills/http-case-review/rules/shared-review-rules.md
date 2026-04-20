@@ -33,6 +33,13 @@ Common failure modes:
 
 Every finding must be concrete and actionable.
 
+Confidence should reflect how directly the testcase evidence supports the finding:
+
+- higher confidence when the issue is visible directly in `http/scenario/**`
+- higher confidence when the testcase can pass for the wrong reason or fail to prove the claimed behavior
+- lower confidence when the concern is vague, depends on assumptions outside `http/scenario/**`, or lacks a precise file/line anchor
+- do not use application code visibility as a confidence signal; this skill does not review application code as a target
+
 Good findings include:
 
 - exact file and line
