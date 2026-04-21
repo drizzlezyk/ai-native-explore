@@ -11,7 +11,7 @@ Review Markdown documents with a coordinator plus five parallel sub-agents:
 - `LogicFlow`: cross-section consistency, assumptions, data and conclusion alignment
 - `SolutionReview`: technical soundness, trade-offs, feasibility, scalability, operability
 - `SafeGuard`: security, compliance, privacy, credentials, risky defaults
-- `RuleCompliance`: repository-specific documentation rule checks based on `.claude/commands/code-review.md`
+- `RuleCompliance`: repository-specific documentation rule checks based on embedded workspace review rules
 
 Use this skill when:
 
@@ -35,7 +35,7 @@ Always load repository context before reviewing:
 3. Read the matching template as the baseline:
    - `templates/Requirement Analysis/#1 Requirement Analysis Specification.md`
    - `templates/Architecture Desgin/#1 Architecture Design Specification.md`
-4. Read `.claude/commands/code-review.md` as the repository review rule source, especially for Requirement Analysis and Architecture Design checks.
+4. Apply the embedded workspace review rules in this skill, especially for Requirement Analysis and Architecture Design checks.
 5. Read relevant rules from `context/team/` when the document involves security, API, credentials, privacy, or compliance.
 6. Read relevant writing experience from `context/experience/` when useful for spotting common documentation issues.
 
@@ -223,18 +223,41 @@ Critical issue examples:
 
 Mission:
 
-- verify the document against repository review rules defined in `.claude/commands/code-review.md`
+- verify the document against the embedded repository review rules in this skill
 - catch template, naming, gating, and cross-document compliance issues that generic reviewers may miss
 
-Primary source:
+Embedded workspace review rules:
 
-- `.claude/commands/code-review.md`
+- Skill and command files should have complete and unambiguous steps, clear parameter descriptions, and remain consistent with `AGENTS.md`.
+- Repository docs should keep structure aligned with actual repository layout and should not reference missing files or conflicting rules.
+- Requirement Analysis docs must satisfy all of the following:
+  - filename starts with `#{issueId}`
+  - acceptance criteria are measurable and testable
+  - task breakdown stays compact, usually 2-4 tasks
+  - checked relevance items include reasons where required
+  - value evaluation ends with `Accept`, `Reject`, or `Pending`
+  - template guide blocks and checkbox lists are preserved
+  - label logic is internally consistent:
+    - section A/B/C selections align with 5.1 summary
+    - any A-section security trigger maps to `need_security`
+    - if A triggers security design, B first item is checked accordingly
+    - C-section narrative and checkbox selections do not contradict each other
+    - `need_light` is checked only when A/B/C are all unchecked
+- Architecture Design docs must satisfy all of the following:
+  - filename starts with `#{issueId}`
+  - directory spelling remains `Architecture Desgin`
+  - if `need_security` applies, section 3.1 includes threat analysis, security design implementation, and security task breakdown
+  - sections that do not apply are retained with an explicit reason instead of being deleted
+  - template guide blocks are preserved
+- Test Strategy and Test Report docs should not keep template placeholders in title or basic info, and their scope should match Requirement Analysis labels.
+- Release docs should have actual change level, execution steps, and rollback plan instead of template placeholders.
+- Experience docs should be specific and actionable, ideally showing problem, cause, and solution with concrete examples.
+- Cross-document consistency must hold:
+  - Requirement Analysis labels match whether Architecture/Test directories should exist
+  - deliverable references point to real files when verifiable
+  - the same fact, scope, and conclusion should not conflict across issue documents
 
 Typical checks for Requirement Analysis:
-
-- filename starts with `#{issueId}`
-- acceptance criteria are measurable and testable
-- task breakdown is compact, usually 2-4 tasks
 - checked relevance items include reasons where required
 - template guide blocks and checkbox lists are preserved
 - label logic is internally consistent:
@@ -260,7 +283,7 @@ Cross-document checks:
 
 Output preference:
 
-- cite the exact rule category from `.claude/commands/code-review.md` when possible
+- cite the embedded rule category name when possible
 - treat rule violations as compliance findings, not style suggestions
 - escalate missing gate-triggered sections above generic wording defects
 
@@ -322,7 +345,7 @@ Use this structure:
 ### Rule Compliance Summary
 - Compliance status: `partially compliant`
 - Violated rules (2): missing template guide blocks; gate-triggered security section is absent.
-- Rule sources: `.claude/commands/code-review.md`, `AGENTS.md`
+- Rule sources: `embedded workspace review rules`, `AGENTS.md`
 
 ### Findings by Agent
 - TermStyle: score `3.8/5.0`
@@ -337,8 +360,8 @@ Use this structure:
   - [major] the document deletes template-required sections instead of keeping them with an explicit "not involved" reason, which violates repository review rules.
 
 ### Violated Rules
-- `.claude/commands/code-review.md` - template guide blocks and checkbox lists must be preserved.
-- `.claude/commands/code-review.md` - if `need_security` applies, section 3.1 must be filled.
+- `embedded workspace review rules` - template guide blocks and checkbox lists must be preserved.
+- `embedded workspace review rules` - if `need_security` applies, section 3.1 must be filled.
 - `AGENTS.md` - checked relevance analysis items must include reasons where required.
 
 ### Action List
@@ -353,7 +376,7 @@ Use this structure:
 - Cite evidence from the document, not vague impressions.
 - Keep findings actionable and specific.
 - Do not overload the author with dozens of tiny style notes.
-- When repository rules and generic best practices differ, follow `.claude/commands/code-review.md` and `AGENTS.md` first.
+- When repository rules and generic best practices differ, follow the embedded workspace review rules and `AGENTS.md` first.
 - Always surface rule violations in a dedicated section instead of burying them inside generic findings.
 - When a rule is violated, cite the rule source and summarize the expected behavior in one sentence.
 - If a section is intentionally out of scope, say so explicitly.
