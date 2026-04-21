@@ -1,5 +1,5 @@
 ---
-name: http-testcase-review
+name: test-case-review
 description: Use when reviewing HTTP testcase artifacts under http/scenario for weak oracles, missing business-path coverage, auth gaps, brittle scenario design, or unclear user-journey verification.
 ---
 
